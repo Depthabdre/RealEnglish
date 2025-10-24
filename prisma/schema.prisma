@@ -1,0 +1,30 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Our User model, which will become the "users" table in the database
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  fullName  String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// A model to store OTPs and reset tokens securely in the database
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique // This will be our OTP or a longer-lived token
+  expires   DateTime
+
+  @@index([email]) // Add an index to the email field for faster lookups
+}
