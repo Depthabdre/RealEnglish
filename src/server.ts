@@ -1,18 +1,30 @@
-// Import and configure dotenv at the VERY TOP of the file
+// IMPORTANT: This must be the very first line to load our .env file
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-// NOW you can import and use other parts of your application
 import express from 'express';
-// ... your other imports for controllers, routes, etc.
+import cors from 'cors';
+// Import the fully composed router
+import authRouter from './features/authentication/interface/routes/auth_routes';
 
-// The rest of your server setup...
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
-// When your PostgresAuthRepository is instantiated somewhere in your app,
-// it will now successfully find process.env.DATABASE_URL.
+// --- Middlewares ---
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+// --- Routes ---
+// Mount our authentication routes under the `/api/auth` prefix
+app.use('/api/auth', authRouter);
+
+// A simple root route to check if the server is up
+app.get('/', (req, res) => {
+    res.send('RealEnglish API Server is running!');
+});
+
+// --- Start the Server ---
+app.listen(3000, '0.0.0.0', () => {
+    console.log(`Server is running on http://0.0.0.0:${port}`);
 });

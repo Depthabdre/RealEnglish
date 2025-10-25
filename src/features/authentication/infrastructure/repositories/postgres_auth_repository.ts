@@ -5,10 +5,13 @@ import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from "crypto";
+import { OAuth2Client } from 'google-auth-library';
 
 export class PostgresAuthRepository implements AuthRepository {
     // Instantiate the Prisma Client
     private readonly prisma = new PrismaClient();
+    // Create a private instance of the Google OAuth Client
+    private readonly googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
     async signUp(userData: { fullName: string; email: string; password_hash: string; }): Promise<void> {
         try {
@@ -110,8 +113,44 @@ export class PostgresAuthRepository implements AuthRepository {
 
     // --- You would continue to implement the remaining methods ---
 
-    async googleSignIn(): Promise<User> {
-        throw new Error("Method not implemented.");
+    // --- IMPLEMENT THE GOOGLE SIGN-IN METHOD ---
+    async googleSignIn(googleToken: string): Promise<User> {
+        try {
+            // 1. VERIFY TOKEN: Send the token to Google for verification.
+            const ticket = await this.googleClient.verifyIdToken({
+                idToken: googleToken,
+                audience: process.env.GOOGLE_CLIENT_ID, // Specify your client ID
+            });
+            const payload = ticket.getPayload();
+
+            if (!payload || !payload.email || !payload.name) {
+                throw new Error('Invalid Google token or missing user information.');
+            }
+
+            const { email, name: fullName } = payload;
+
+            // 2. UPSERT USER: Find a user with this email or create a new one.
+            // `upsert` is a powerful Prisma command that does this in one step.
+            const userInDb = await this.prisma.user.upsert({
+                where: { email: email }, // Condition to find the user
+                update: { fullName: fullName }, // What to update if found
+                create: { // What to create if not found
+                    email: email,
+                    fullName: fullName,
+                    // Since they sign in with Google, they don't have a password.
+                    // We must provide a value because the field is required in our schema.
+                    // A long, random, unusable string is a good practice.
+                    password: Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2),
+                }
+            });
+
+            // 3. RETURN DOMAIN ENTITY: Return our application's standard User object.
+            return new User(userInDb.id, userInDb.fullName, userInDb.email);
+
+        } catch (error) {
+            console.error("Google Sign-In Error:", error);
+            throw new Error('Google authentication failed.');
+        }
     }
 
     async signOut(): Promise<void> {

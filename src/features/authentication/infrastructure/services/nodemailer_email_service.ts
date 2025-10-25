@@ -8,14 +8,16 @@ export class NodemailerEmailService implements EmailService {
         // We will configure the email transporter using environment variables
         // This allows you to use different email accounts for development and production
         this.transporter = nodemailer.createTransport({
-            host: process.env.EMAIL_HOST, // e.g., 'smtp.gmail.com' or your provider's SMTP host
-            port: Number(process.env.EMAIL_PORT), // e.g., 587
-            secure: process.env.EMAIL_PORT === '465', // true for 465, false for other ports
+            host: process.env.EMAIL_HOST,
+            port: Number(process.env.EMAIL_PORT),
+            secure: false, // true if using port 465
             auth: {
-                user: process.env.EMAIL_USER, // your email address
-                pass: process.env.EMAIL_PASS, // your email password or app-specific password
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
             },
+            tls: { rejectUnauthorized: false }, // dev only
         });
+
     }
 
     async sendPasswordResetOtp(email: string, otp: string): Promise<void> {
