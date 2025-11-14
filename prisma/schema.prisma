@@ -11,20 +11,90 @@ datasource db {
 
 // Our User model, which will become the "users" table in the database
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  fullName  String
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id       String @id @default(uuid())
+  email    String @unique
+  fullName String
+  password String
+
+  // --- ADD THIS LINE ---
+  level Int @default(0) // User's current level, starts at 0
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  completedStories CompletedStory[]
 }
 
 // A model to store OTPs and reset tokens securely in the database
 model PasswordResetToken {
-  id        String   @id @default(uuid())
-  email     String
-  token     String   @unique // This will be our OTP or a longer-lived token
-  expires   DateTime
+  id      String   @id @default(uuid())
+  email   String
+  token   String   @unique // This will be our OTP or a longer-lived token
+  expires DateTime
 
   @@index([email]) // Add an index to the email field for faster lookups
+}
+
+model StoryTrail {
+  id              String @id @default(uuid())
+  title           String
+  description     String
+  imageUrl        String
+  difficultyLevel Int
+
+  segments    StorySegment[]
+  completedBy CompletedStory[] // Relation to track completions
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StorySegment {
+  id          String @id @default(uuid())
+  type        String // "narration" or "choiceChallenge"
+  textContent String @db.Text // The raw text content
+
+  imageUrl String?
+
+  trailId    String
+  storyTrail StoryTrail @relation(fields: [trailId], references: [id], onDelete: Cascade)
+
+  challenge SingleChoiceChallenge? // A segment can have one challenge
+
+  @@index([trailId])
+}
+
+model SingleChoiceChallenge {
+  id                String  @id @default(uuid())
+  prompt            String
+  correctAnswerId   String // The ID of the correct choice
+  correctFeedback   String?
+  incorrectFeedback String?
+
+  segmentId String       @unique // Each segment has only one challenge
+  segment   StorySegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+
+  choices Choice[]
+}
+
+model Choice {
+  id       String  @id @default(uuid())
+  text     String
+  imageUrl String?
+
+  challengeId String
+  challenge   SingleChoiceChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@index([challengeId])
+}
+
+// Join table to track user progress (many-to-many relationship)
+model CompletedStory {
+  userId      String
+  storyId     String
+  completedAt DateTime @default(now())
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story StoryTrail @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, storyId]) // Composite primary key
 }
