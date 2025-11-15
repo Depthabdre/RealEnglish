@@ -1,10 +1,12 @@
-// --- Infrastructure Layer ---
-// We import the concrete implementations that our container will build.
+import { PrismaClient } from '@prisma/client';
+
+// =================================================================
+// AUTHENTICATION FEATURE IMPORTS
+// =================================================================
+// --- Infrastructure ---
 import { PostgresAuthRepository } from './features/authentication/infrastructure/repositories/postgres_auth_repository';
 import { NodemailerEmailService } from './features/authentication/infrastructure/services/nodemailer_email_service';
-
-// --- Use Cases Layer ---
-// We import the use cases that the container will provide to the controllers.
+// --- Use Cases ---
 import { SignUpUseCase } from './features/authentication/use-cases/sign_up';
 import { SignInUseCase } from './features/authentication/use-cases/sign_in';
 import { ForgotPasswordUseCase } from './features/authentication/use-cases/forgot_password';
@@ -13,51 +15,72 @@ import { ResetPasswordUseCase } from './features/authentication/use-cases/reset_
 import { GetMeUseCase } from './features/authentication/use-cases/get_me';
 import { GoogleSignInUseCase } from './features/authentication/use-cases/google_sign_in';
 
+// =================================================================
+// STORY TRAILS FEATURE IMPORTS
+// =================================================================
+// --- Infrastructure ---
+import { PrismaStoryTrailRepository } from './features/story_trails/infrastructure/database/prisma-story-trail-repository';
+import { PrismaUserProgressRepository } from './features/story_trails/infrastructure/database/prisma-user-progress-repository';
+import { PrismaUserRepository } from './features/story_trails/infrastructure/database/prisma-user-repository';
+import { GeminiTextToSpeechService } from './features/story_trails/infrastructure/ai/gemini-text-to-speech-service';
+import { GeminiStoryGenerationService } from './features/story_trails/infrastructure/ai/gemini-story-generation-service';
+// --- Use Cases ---
+import { GetNextStoryTrailUseCase } from './features/story_trails/usecases/get-next-story-trail';
+import { GetStoryTrailByIdUseCase } from './features/story_trails/usecases/get-story-trail-by-id';
+import { MarkStoryTrailCompletedUseCase } from './features/story_trails/usecases/mark-story-trail-completed';
+import { GetAudioForSegmentUseCase } from './features/story_trails/usecases/get-audio-for-segment';
+
 export class DIContainer {
 
-    // --- SINGLETON INSTANCES (INFRASTRUCTURE) ---
-    // We create single, private, static instances of our infrastructure components.
-    // This ensures there is only ONE auth repository and ONE email service for the whole app.
-    private static readonly _authRepository = new PostgresAuthRepository();
+    // --- SHARED INFRASTRUCTURE (SINGLETONS) ---
+    private static readonly _prismaClient = new PrismaClient();
+
+    // --- AUTHENTICATION INFRASTRUCTURE (SINGLETONS) ---
+    private static readonly _authRepository = new PostgresAuthRepository(this._prismaClient);
     private static readonly _emailService = new NodemailerEmailService();
 
-    // --- GETTERS FOR INFRASTRUCTURE ---
-    // Public static methods to safely access our singleton instances.
-    public static getAuthRepository() {
-        return this._authRepository;
+    // --- STORY TRAILS INFRASTRUCTURE (SINGLETONS) ---
+    private static readonly _storyTrailRepository = new PrismaStoryTrailRepository(this._prismaClient);
+    private static readonly _userProgressRepository = new PrismaUserProgressRepository(this._prismaClient);
+    private static readonly _userRepository = new PrismaUserRepository(this._prismaClient);
+
+    // THE FIX IS HERE: We must pass the API key from the environment to the constructor.
+    // The '!' tells TypeScript we are sure that this environment variable will be present at runtime.
+    private static readonly _textToSpeechService = new GeminiTextToSpeechService(process.env.GEMINI_API_KEY!);
+
+    private static readonly _storyGenerationService = new GeminiStoryGenerationService(this._storyTrailRepository);
+
+    // =================================================================
+    // PUBLIC GETTERS FOR USE CASES
+    // =================================================================
+
+    // --- Authentication Use Case Getters ---
+    public static getSignUpUseCase() { return new SignUpUseCase(this._authRepository); }
+    public static getSignInUseCase() { return new SignInUseCase(this._authRepository); }
+    public static getForgotPasswordUseCase() { return new ForgotPasswordUseCase(this._authRepository, this._emailService); }
+    public static getVerifyOtpUseCase() { return new VerifyOtpUseCase(this._authRepository); }
+    public static getResetPasswordUseCase() { return new ResetPasswordUseCase(this._authRepository); }
+    public static getGetMeUseCase() { return new GetMeUseCase(this._authRepository); }
+    public static getGoogleSignInUseCase() { return new GoogleSignInUseCase(this._authRepository); }
+
+    // --- Story Trails Use Case Getters ---
+    public static getGetNextStoryTrailUseCase() {
+        return new GetNextStoryTrailUseCase(this._storyTrailRepository, this._storyGenerationService);
     }
 
-    public static getEmailService() {
-        return this._emailService;
+    public static getGetStoryTrailByIdUseCase() {
+        return new GetStoryTrailByIdUseCase(this._storyTrailRepository);
     }
 
-    // --- GETTERS FOR USE CASES ---
-    // These methods create and return a new instance of a use case.
-    // They fetch the required dependencies (like the repository) from our singleton getters.
-    public static getSignUpUseCase() {
-        return new SignUpUseCase(this.getAuthRepository());
+    public static getMarkStoryTrailCompletedUseCase() {
+        return new MarkStoryTrailCompletedUseCase(
+            this._userProgressRepository,
+            this._userRepository,
+            this._storyTrailRepository
+        );
     }
 
-    public static getSignInUseCase() {
-        return new SignInUseCase(this.getAuthRepository());
-    }
-
-    public static getForgotPasswordUseCase() {
-        // This use case needs both the repository and the email service.
-        return new ForgotPasswordUseCase(this.getAuthRepository(), this.getEmailService());
-    }
-
-    public static getVerifyOtpUseCase() {
-        return new VerifyOtpUseCase(this.getAuthRepository());
-    }
-
-    public static getResetPasswordUseCase() {
-        return new ResetPasswordUseCase(this.getAuthRepository());
-    }
-    public static getGetMeUseCase() {
-        return new GetMeUseCase(this.getAuthRepository());
-    }
-    public static getGoogleSignInUseCase() {
-        return new GoogleSignInUseCase(this.getAuthRepository());
+    public static getGetAudioForSegmentUseCase() {
+        return new GetAudioForSegmentUseCase(this._storyTrailRepository, this._textToSpeechService);
     }
 }

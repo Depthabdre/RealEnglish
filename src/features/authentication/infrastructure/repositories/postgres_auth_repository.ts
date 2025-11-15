@@ -9,8 +9,8 @@ import { OAuth2Client } from 'google-auth-library';
 
 export class PostgresAuthRepository implements AuthRepository {
     // Instantiate the Prisma Client
-    private readonly prisma = new PrismaClient();
-    // Create a private instance of the Google OAuth Client
+    constructor(private readonly prisma: PrismaClient) { }
+
     private readonly googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
     async signUp(userData: { fullName: string; email: string; password_hash: string; }): Promise<void> {
@@ -45,7 +45,13 @@ export class PostgresAuthRepository implements AuthRepository {
             throw new Error('Invalid email or password.');
         }
 
-        return new User(user.id, user.fullName, user.email);
+        return new User(
+            user.id,
+            user.fullName,
+            user.level,     // <-- required 3rd argument
+            user.email,     // <-- required 4th argument
+            // <-- optional
+        );
     }
 
     async forgotPassword(email: string): Promise<string | null> {
@@ -108,7 +114,13 @@ export class PostgresAuthRepository implements AuthRepository {
         if (!user) {
             throw new Error('User not found.');
         }
-        return new User(user.id, user.fullName, user.email);
+        return new User(
+            user.id,
+            user.fullName,
+            user.level,     // <-- required 3rd argument
+            user.email,     // <-- required 4th argument
+            // <-- optional
+        );
     }
 
     // --- You would continue to implement the remaining methods ---
@@ -145,8 +157,13 @@ export class PostgresAuthRepository implements AuthRepository {
             });
 
             // 3. RETURN DOMAIN ENTITY: Return our application's standard User object.
-            return new User(userInDb.id, userInDb.fullName, userInDb.email);
-
+            return new User(
+                userInDb.id,
+                userInDb.fullName,
+                userInDb.level,     // <-- required 3rd argument
+                userInDb.email,     // <-- required 4th argument
+                userInDb.password   // <-- optional
+            );
         } catch (error) {
             console.error("Google Sign-In Error:", error);
             throw new Error('Google authentication failed.');
