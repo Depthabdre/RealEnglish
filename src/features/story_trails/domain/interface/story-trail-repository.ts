@@ -24,4 +24,10 @@ export interface StoryTrailRepository {
     save(storyTrail: StoryTrail): Promise<void>;
 
     findFirstByLevel(level: number): Promise<StoryTrail | null>;
+
+    /**
+    * Updates the audioUrl for a specific story segment.
+    */
+    updateSegmentAudioUrl(segmentId: string, audioUrl: string): Promise<void>;
+
 }

@@ -113,4 +113,14 @@ export class PrismaStoryTrailRepository implements StoryTrailRepository {
             },
         });
     }
+
+    // 2. Implementation for updating the URL (The core part)
+    async updateSegmentAudioUrl(segmentId: string, audioUrl: string): Promise<void> {
+        await this.prisma.storySegment.update({
+            where: { id: segmentId },
+            data: {
+                audioUrl: audioUrl
+            }
+        });
+    }
 }

@@ -49,9 +49,10 @@ model StoryTrail {
 }
 
 model StorySegment {
-  id          String @id @default(uuid())
+  id          String  @id @default(uuid())
   type        String // "narration" or "choiceChallenge"
-  textContent String @db.Text // The raw text content
+  textContent String  @db.Text // The raw text content
+  audioUrl    String? // Stores the OBS Cloud URL (e.g. https://obs.../file.wav)
 
   imageUrl String?
 

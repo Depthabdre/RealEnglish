@@ -77,7 +77,7 @@ export class StoryTrailController {
             // 200 OK: The progress was saved successfully.
             res.status(200).json(completionStatus);
         } catch (error: any) {
-             // Handle specific, known errors gracefully.
+            // Handle specific, known errors gracefully.
             if (error.message.includes('not found')) {
                 res.status(404).json({ error: 'User or StoryTrail not found.' });
             } else {
@@ -86,7 +86,7 @@ export class StoryTrailController {
             }
         }
     }
-    
+
     /**
      * Handles: GET /story-trails/segments/{segmentId}/audio
      * Generates and streams audio for a specific story segment.
@@ -94,16 +94,19 @@ export class StoryTrailController {
     public getSegmentAudio = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const { segmentId } = req.params;
-            const audioBuffer = await this.getAudioForSegmentUseCase.execute({ segmentId });
 
-            // Set the correct HTTP headers for the audio response.
-            res.set('Content-Type', 'audio/mpeg');
-            
-            // Send the raw audio data buffer back to the client.
-            res.status(200).send(audioBuffer);
+            // Execute now returns a STRING (The OBS URL)
+            const audioUrl = await this.getAudioForSegmentUseCase.execute({ segmentId });
+
+            // Return JSON containing the URL
+            res.status(200).json({
+                audioUrl: audioUrl
+            });
+
         } catch (error: any) {
             console.error('Error in getSegmentAudio:', error);
-            res.status(404).json({ error: 'Audio content for this segment could not be found or generated.' });
+            // Don't send 500 if it's just missing content, but usually we prefer 404 here
+            res.status(404).json({ error: 'Audio content for this segment could not be retrieved.' });
         }
     }
 }
