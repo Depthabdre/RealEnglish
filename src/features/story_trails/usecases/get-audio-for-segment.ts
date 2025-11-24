@@ -41,7 +41,8 @@ export class GetAudioForSegmentUseCase {
         // 3. UPLOAD: Send to Ethio Telecom OBS
         // We structure files as "stories/{segmentId}.wav"
         const fileName = `stories/${input.segmentId}.wav`;
-        const cloudUrl = await this.obsService.uploadAudio(fileName, audioBuffer);
+        // --- FIX HERE: Use uploadFile and specify 'audio/wav' ---
+        const cloudUrl = await this.obsService.uploadFile(fileName, audioBuffer, 'audio/wav');
 
         // 4. SAVE: Update the database with the new URL
         // This ensures next time we hit step #1

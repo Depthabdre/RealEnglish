@@ -36,36 +36,25 @@ export class ObsStorageService {
      * @param fileName - The path inside the bucket (e.g. "stories/123.wav")
      * @param fileBuffer - The actual audio data
      */
-    async uploadAudio(fileName: string, fileBuffer: Buffer): Promise<string> {
-        // 1. Prepare the Upload Command
+    async uploadFile(fileName: string, fileBuffer: Buffer, contentType: string): Promise<string> {
         const command = new PutObjectCommand({
             Bucket: this.bucketName,
             Key: fileName,
             Body: fileBuffer,
-            ContentType: 'audio/wav',
+            ContentType: contentType, // Dynamic Content Type (audio/wav or image/jpeg)
             ACL: 'public-read'
         });
 
-
         try {
-            // 2. Send to Cloud
-            console.log(`☁️ Uploading ${fileName} to OBS...`);
             await this.s3Client.send(command);
 
-            // --- THE FIX STARTS HERE ---
-
-            // 1. Remove 'https://' from the endpoint string to handle it cleanly
+            // Virtual Host Style URL Construction
             const cleanEndpoint = this.endpoint.replace(/^https?:\/\//, '');
+            return `https://${this.bucketName}.${cleanEndpoint}/${fileName}`;
 
-            // 2. Construct Virtual Host Style URL: https://{bucket}.{endpoint}/{file}
-            // Result: https://real-english-assets.obsv3.et-global-1.ethiotelecom.et/stories/xyz.wav
-            const publicUrl = `https://${this.bucketName}.${cleanEndpoint}/${fileName}`;
-
-            return publicUrl;
-            // ---------------------------
         } catch (error) {
-            console.error("❌ Error uploading to OBS:", error);
-            throw new Error("Failed to upload audio to cloud storage.");
+            console.error(`❌ Error uploading ${fileName} to OBS:`, error);
+            throw new Error("Failed to upload file to cloud storage.");
         }
     }
 }
