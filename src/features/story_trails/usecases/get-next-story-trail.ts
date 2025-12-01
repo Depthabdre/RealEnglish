@@ -14,20 +14,25 @@ export class GetNextStoryTrailUseCase {
     ) { }
 
     async execute(input: GetNextStoryTrailInput): Promise<StoryTrail | null> {
-        // 1. Try to find an existing, uncompleted story from the database first.
-        const existingTrail = await this.storyTrailRepository.findNextIncompleteByLevel(input.level, input.userId);
+        // Normalize Level: If frontend sends 0, treat as 1.
+        const level = input.level < 1 ? 1 : input.level;
+
+        // 1. Try to find an existing, uncompleted story
+        const existingTrail = await this.storyTrailRepository.findNextIncompleteByLevel(level, input.userId);
 
         if (existingTrail) {
+            console.log("♻️ Returning existing story from Database.");
             return existingTrail;
         }
 
-        // 2. If no story is found, generate a brand new one using the AI service.
-        const newTrail = await this.storyGenerationService.generateStoryForLevel(input.level);
+        // 2. Generate new story via AI
+        console.log("🤖 Generating NEW story via AI...");
+        const newTrail = await this.storyGenerationService.generateStoryForLevel(level);
 
-        // 3. Save the newly generated story to the database for future use.
+        // 3. Save to DB
+        console.log("💾 Saving new story to Database...");
         await this.storyTrailRepository.save(newTrail);
 
-        // 4. Return the new story to the user.
         return newTrail;
     }
 }

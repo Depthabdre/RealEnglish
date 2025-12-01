@@ -1,25 +1,21 @@
 import { GoogleGenAI } from '@google/genai';
 import { randomUUID } from 'crypto';
-import axios from 'axios';
 import { StoryGenerationService } from '../../domain/interface/ai-services';
 import { StoryTrail } from '../../domain/entities/story-trail';
 import { StoryTrailRepository } from '../../domain/interface/story-trail-repository';
 import { StorySegment } from '../../domain/entities/story-segment';
 import { SingleChoiceChallenge } from '../../domain/entities/single-choice-challenge';
 import { Choice } from '../../domain/entities/choice';
-import { ObsStorageService } from '../storage/obs-service';
 
 export class GeminiStoryGenerationService implements StoryGenerationService {
     private readonly ai: GoogleGenAI;
     private readonly modelId: string;
-    private readonly obsService = new ObsStorageService();
 
     constructor(private readonly storyTrailRepository: StoryTrailRepository) {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) throw new Error('GEMINI_API_KEY is missing.');
 
         this.ai = new GoogleGenAI({ apiKey: apiKey });
-        // Use 'gemini-2.0-flash' for speed and higher quotas during dev
         this.modelId = 'gemini-2.0-flash';
     }
 
@@ -51,8 +47,8 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
             console.log("👉 Stage 3: Extracting JSON...");
             const generatedJson = this.extractFirstJson(responseText);
 
-            console.log("👉 Stage 4: Processing Images (Sequential with Retry)...");
-            return await this.mapJsonToDomainWithCloudImages(generatedJson);
+            console.log("👉 Stage 4: constructing URLs (Fast Mode)...");
+            return this.mapJsonToDomain(generatedJson);
 
         } catch (error) {
             console.error("Story Generation Failed:", error);
@@ -62,7 +58,7 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
 
     private extractFirstJson(text: string): any {
         const match = text.match(/[\{\[]/);
-        if (!match || match.index === undefined) throw new Error("No JSON structure found.");
+        if (!match || match.index === undefined) throw new Error("No JSON found.");
 
         const startIndex = match.index;
         const startChar = match[0];
@@ -83,7 +79,7 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
             }
         }
 
-        if (endIndex === -1) throw new Error(`Invalid JSON: Unbalanced ${startChar}${endChar}`);
+        if (endIndex === -1) throw new Error("Unbalanced JSON");
 
         const jsonString = text.substring(startIndex, endIndex + 1);
         try {
@@ -92,7 +88,7 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
             if (Array.isArray(parsed)) return parsed[0];
             return parsed;
         } catch (e) {
-            throw new Error("Failed to parse extracted JSON.");
+            throw new Error("Failed to parse JSON");
         }
     }
 
@@ -107,7 +103,7 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
             3.  Structure: Include 3-5 segments.
             
             **IMAGES:**
-            Generate a **"visual_description"** (5-10 words) for each scene. DO NOT generate URLs.
+            Generate a **"visual_description"** (5-10 words) for each scene.
 
             **JSON Schema:**
             {
@@ -140,121 +136,61 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
         `;
     }
 
-    private async mapJsonToDomainWithCloudImages(jsonData: any): Promise<StoryTrail> {
-        if (!jsonData || !jsonData.segments) throw new Error("Invalid AI JSON");
-
+    private mapJsonToDomain(jsonData: any): StoryTrail {
         const storyId = randomUUID();
-        const segments: StorySegment[] = [];
 
-        // Helper to pause execution
-        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-        // 1. Cover Image
-        const coverImageUrl = await this.processImage(storyId, 'cover', jsonData.visual_description || jsonData.title);
-        await delay(2000); // Wait 2s
-
-        // 2. Segments (Sequential Loop)
-        for (const [index, seg] of jsonData.segments.entries()) {
-            // Segment Image
-            const segImageUrl = await this.processImage(storyId, `seg_${index}`, seg.visual_description || "story scene");
-            await delay(2000); // Wait 2s between requests
-
-            // Challenge
-            let challenge: SingleChoiceChallenge | null = null;
-            if (seg.challenge) {
-                const choices: Choice[] = [];
-                const rawChoices = Array.isArray(seg.challenge.choices) ? seg.challenge.choices : [];
-
-                for (const [cIndex, c] of rawChoices.entries()) {
-                    const choiceUrl = await this.processImage(storyId, `seg_${index}_choice_${cIndex}`, c.visual_description || c.text);
-                    choices.push(new Choice(randomUUID(), c.text, choiceUrl));
-                    await delay(1000); // Wait 1s between choices
-                }
-
-                let correctChoiceIndex = rawChoices.findIndex((c: any) => c.is_correct === true);
-                if (correctChoiceIndex === -1) correctChoiceIndex = 0;
-
-                const correctId = choices.length > 0 ? choices[correctChoiceIndex].id : randomUUID();
-
-                challenge = new SingleChoiceChallenge(
-                    randomUUID(),
-                    'singleChoice',
-                    seg.challenge.prompt,
-                    choices,
-                    correctId,
-                    seg.challenge.correct_feedback,
-                    seg.challenge.incorrect_feedback
-                );
-            }
-
-            segments.push(new StorySegment(
-                randomUUID(),
-                seg.type,
-                seg.text_content,
-                segImageUrl,
-                null,
-                challenge
-            ));
-        }
+        // Helper to generate Pollinations URL string instantly
+        const generateUrl = (desc: string) => {
+            if (!desc) return 'https://via.placeholder.com/300';
+            // We add a random seed so the image is stable (doesn't change on reload)
+            // but unique per request.
+            const seed = Math.floor(Math.random() * 10000);
+            const encoded = encodeURIComponent(desc + " cute children book illustration style");
+            return `https://image.pollinations.ai/prompt/${encoded}?nologo=true&width=1024&height=1024&seed=${seed}`;
+        };
 
         return new StoryTrail(
             storyId,
             jsonData.title,
             jsonData.description,
-            coverImageUrl,
+            generateUrl(jsonData.visual_description || jsonData.title),
             jsonData.difficulty_level,
-            segments
-        );
-    }
+            jsonData.segments.map((seg: any) => {
+                let challenge: SingleChoiceChallenge | null = null;
 
-    /**
-     * ROBUST IMAGE PROCESSOR
-     * Includes Retry Logic with Exponential Backoff for 429 Errors.
-     */
-    private async processImage(storyId: string, suffix: string, description: string): Promise<string> {
-        if (!description) return 'https://via.placeholder.com/300?text=No+Desc';
+                if (seg.challenge) {
+                    const choices = Array.isArray(seg.challenge.choices) ? seg.challenge.choices : [];
+                    const domainChoices = choices.map((c: any) => new Choice(
+                        randomUUID(),
+                        c.text,
+                        generateUrl(c.visual_description || c.text)
+                    ));
 
-        const encoded = encodeURIComponent(description + " cute children book illustration style");
-        const pollinationUrl = `https://image.pollinations.ai/prompt/${encoded}?nologo=true&width=1024&height=1024&seed=${Math.floor(Math.random() * 1000)}`;
+                    let correctChoiceIndex = choices.findIndex((c: any) => c.is_correct === true);
+                    if (correctChoiceIndex === -1) correctChoiceIndex = 0;
 
-        const fileName = `images/${storyId}/${suffix}.jpg`;
-        const maxRetries = 3;
-        let attempt = 0;
+                    const correctId = domainChoices.length > 0 ? domainChoices[correctChoiceIndex].id : randomUUID();
 
-        while (attempt < maxRetries) {
-            try {
-                console.log(`🎨 Downloading: ${suffix} (Attempt ${attempt + 1})...`);
-
-                // Increased timeout to 30s because generation is slow
-                const response = await axios.get(pollinationUrl, {
-                    responseType: 'arraybuffer',
-                    timeout: 30000
-                });
-
-                const buffer = Buffer.from(response.data);
-                const obsUrl = await this.obsService.uploadFile(fileName, buffer, 'image/jpeg');
-                return obsUrl;
-
-            } catch (error: any) {
-                const isRateLimit = error.response?.status === 429;
-                const isTimeout = error.code === 'ECONNABORTED';
-
-                if (isRateLimit || isTimeout) {
-                    attempt++;
-                    const waitTime = attempt * 3000; // Wait 3s, then 6s, then 9s
-                    console.warn(`⚠️ Rate Limit/Timeout for ${suffix}. Retrying in ${waitTime / 1000}s...`);
-
-                    // Wait before retrying
-                    await new Promise(resolve => setTimeout(resolve, waitTime));
-                } else {
-                    // If it's a 404 or other fatal error, stop trying
-                    console.error(`❌ Fatal Error for ${suffix}:`, error.message);
-                    break;
+                    challenge = new SingleChoiceChallenge(
+                        randomUUID(),
+                        'singleChoice',
+                        seg.challenge.prompt,
+                        domainChoices,
+                        correctId,
+                        seg.challenge.correct_feedback,
+                        seg.challenge.incorrect_feedback
+                    );
                 }
-            }
-        }
 
-        console.error(`🚨 Failed to process ${suffix} after ${maxRetries} attempts. Using fallback.`);
-        return 'https://via.placeholder.com/300?text=Image+Unavailable';
+                return new StorySegment(
+                    randomUUID(),
+                    seg.type,
+                    seg.text_content,
+                    generateUrl(seg.visual_description || "story scene"),
+                    null,
+                    challenge
+                );
+            })
+        );
     }
 }

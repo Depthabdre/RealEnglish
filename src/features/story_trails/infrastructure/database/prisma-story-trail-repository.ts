@@ -2,6 +2,8 @@ import { PrismaClient } from '@prisma/client';
 import { StoryTrail } from '../../domain/entities/story-trail';
 import { StoryTrailRepository } from '../../domain/interface/story-trail-repository';
 import { StorySegment } from '../../domain/entities/story-segment';
+import { SingleChoiceChallenge } from '../../domain/entities/single-choice-challenge';
+import { Choice } from '../../domain/entities/choice';
 // Add other entity imports as needed...
 
 export class PrismaStoryTrailRepository implements StoryTrailRepository {
@@ -31,21 +33,45 @@ export class PrismaStoryTrailRepository implements StoryTrailRepository {
     }
 
     async findNextIncompleteByLevel(level: number, userId: string): Promise<StoryTrail | null> {
+        console.log(`🔍 Repo: Searching for Level ${level} story not completed by ${userId}...`);
+
+        // 1. Normalize Level: Ensure we don't search for Level 0 if stories start at 1
+        const searchLevel = level < 1 ? 1 : level;
+
         const trailData = await this.prisma.storyTrail.findFirst({
             where: {
-                difficultyLevel: level,
-                // Check that there is NO entry in CompletedStory for this user and story
+                difficultyLevel: searchLevel,
+                // Ensure the user hasn't finished this specific story
                 completedBy: {
                     none: {
                         userId: userId,
                     },
                 },
             },
-            include: { /* ... same includes as findById ... */ }
+            // 2. CRITICAL: You must include the full tree, otherwise the mapping fails later
+            include: {
+                segments: {
+                    orderBy: { id: 'asc' }, // Optional: Ensure segments stay in order
+                    include: {
+                        challenge: {
+                            include: {
+                                choices: true,
+                            },
+                        },
+                    },
+                },
+            },
         });
 
-        if (!trailData) return null;
-        return trailData as any;
+        if (!trailData) {
+            console.log("⚠️ Repo: No existing incomplete story found in DB.");
+            return null;
+        }
+
+        console.log(`✅ Repo: Found existing story in DB: "${trailData.title}"`);
+
+        // 3. Map to Domain Entity (Explicit mapping is safer than 'as any')
+        return this.mapToDomain(trailData);
     }
 
     async findSegmentById(segmentId: string): Promise<StorySegment | null> {
@@ -78,8 +104,10 @@ export class PrismaStoryTrailRepository implements StoryTrailRepository {
         return trailData as any; // Map to domain entity
     }
 
+    /**
+     * Saves a full story trail with segments, challenges, and choices.
+     */
     async save(storyTrail: StoryTrail): Promise<void> {
-        // This is more complex as it involves creating nested relations.
         await this.prisma.storyTrail.create({
             data: {
                 id: storyTrail.id,
@@ -88,32 +116,42 @@ export class PrismaStoryTrailRepository implements StoryTrailRepository {
                 imageUrl: storyTrail.imageUrl,
                 difficultyLevel: storyTrail.difficultyLevel,
                 segments: {
-                    create: storyTrail.segments.map(seg => ({
-                        id: seg.id,
-                        type: seg.type,
-                        textContent: seg.textContent,
-                        imageUrl: seg.imageUrl,
-                        challenge: seg.challenge ? {
+                    create: storyTrail.segments.map((segment) => ({
+                        id: segment.id,
+                        type: segment.type,
+                        textContent: segment.textContent,
+                        imageUrl: segment.imageUrl,
+                        audioUrl: segment.audioUrl,
+
+                        // --- FIX IS HERE ---
+                        challenge: segment.challenge ? {
                             create: {
-                                id: seg.challenge.id,
-                                prompt: seg.challenge.prompt,
-                                correctAnswerId: seg.challenge.correctAnswerId,
-                                // ...other challenge fields
+                                id: segment.challenge.id,
+                                prompt: segment.challenge.prompt,
+
+                                // Map Entity property 'correctAnswerId' to DB column
+                                correctAnswerId: segment.challenge.correctAnswerId,
+
+                                // Map the Feedback fields!
+                                // If these lines are missing, Prisma saves NULL.
+                                correctFeedback: segment.challenge.correctFeedback,
+                                incorrectFeedback: segment.challenge.incorrectFeedback,
+
                                 choices: {
-                                    create: seg.challenge.choices.map(c => ({
-                                        id: c.id,
-                                        text: c.text,
-                                        imageUrl: c.imageUrl,
-                                    })),
-                                },
-                            },
-                        } : undefined,
-                    })),
-                },
-            },
+                                    create: segment.challenge.choices.map((choice) => ({
+                                        id: choice.id,
+                                        text: choice.text,
+                                        imageUrl: choice.imageUrl
+                                    }))
+                                }
+                            }
+                        } : undefined
+                        // -------------------
+                    }))
+                }
+            }
         });
     }
-
     // 2. Implementation for updating the URL (The core part)
     async updateSegmentAudioUrl(segmentId: string, audioUrl: string): Promise<void> {
         await this.prisma.storySegment.update({
@@ -123,4 +161,42 @@ export class PrismaStoryTrailRepository implements StoryTrailRepository {
             }
         });
     }
+
+    // --- HELPER: Map Prisma Data to Domain Entity ---
+    private mapToDomain(raw: any): StoryTrail {
+        return new StoryTrail(
+            raw.id,
+            raw.title,
+            raw.description,
+            raw.imageUrl,
+            raw.difficultyLevel,
+            raw.segments.map((seg: any) => {
+
+                // FIX: Explicitly type the variable so TypeScript allows assignment
+                let challenge: SingleChoiceChallenge | null = null;
+
+                if (seg.challenge) {
+                    challenge = new SingleChoiceChallenge(
+                        seg.challenge.id,
+                        'singleChoice',
+                        seg.challenge.prompt,
+                        seg.challenge.choices.map((c: any) => new Choice(c.id, c.text, c.imageUrl)),
+                        seg.challenge.correctAnswerId,
+                        seg.challenge.correctFeedback,
+                        seg.challenge.incorrectFeedback
+                    );
+                }
+
+                return new StorySegment(
+                    seg.id,
+                    seg.type,
+                    seg.textContent,
+                    seg.imageUrl,
+                    seg.audioUrl,
+                    challenge
+                );
+            })
+        );
+    }
 }
+
