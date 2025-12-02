@@ -15,9 +15,7 @@ model User {
   email    String @unique
   fullName String
   password String
-
-  // --- ADD THIS LINE ---
-  level Int @default(0) // User's current level, starts at 0
+  level Int @default(1) 
 
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
