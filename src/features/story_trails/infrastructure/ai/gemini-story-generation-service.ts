@@ -101,6 +101,7 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
             1.  Difficulty Level: ${level}.
             2.  Context: ${context}
             3.  Structure: Include 3-5 segments.
+            4.  **IMPORTANT:** The FIRST segment must always be 'narration'. Do not start with a challenge.
             
             **IMAGES:**
             Generate a **"visual_description"** (5-10 words) for each scene.
@@ -139,11 +140,8 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
     private mapJsonToDomain(jsonData: any): StoryTrail {
         const storyId = randomUUID();
 
-        // Helper to generate Pollinations URL string instantly
         const generateUrl = (desc: string) => {
             if (!desc) return 'https://via.placeholder.com/300';
-            // We add a random seed so the image is stable (doesn't change on reload)
-            // but unique per request.
             const seed = Math.floor(Math.random() * 10000);
             const encoded = encodeURIComponent(desc + " cute children book illustration style");
             return `https://image.pollinations.ai/prompt/${encoded}?nologo=true&width=1024&height=1024&seed=${seed}`;
@@ -158,7 +156,10 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
             jsonData.segments.map((seg: any) => {
                 let challenge: SingleChoiceChallenge | null = null;
 
-                if (seg.challenge) {
+                // --- FIX: Strict Type Check ---
+                // Only create a challenge if the segment type explicitly allows it.
+                // This prevents 'narration' segments from accidentally having challenges.
+                if (seg.type === 'choiceChallenge' && seg.challenge) {
                     const choices = Array.isArray(seg.challenge.choices) ? seg.challenge.choices : [];
                     const domainChoices = choices.map((c: any) => new Choice(
                         randomUUID(),
