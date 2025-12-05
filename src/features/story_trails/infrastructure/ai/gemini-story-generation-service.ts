@@ -140,6 +140,7 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
     private mapJsonToDomain(jsonData: any): StoryTrail {
         const storyId = randomUUID();
 
+        // Fast Mode: Just strings, no downloading
         const generateUrl = (desc: string) => {
             if (!desc) return 'https://via.placeholder.com/300';
             const seed = Math.floor(Math.random() * 10000);
@@ -153,12 +154,10 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
             jsonData.description,
             generateUrl(jsonData.visual_description || jsonData.title),
             jsonData.difficulty_level,
-            jsonData.segments.map((seg: any) => {
+            // --- UPDATED: Pass 'index' to the map function ---
+            jsonData.segments.map((seg: any, index: number) => {
                 let challenge: SingleChoiceChallenge | null = null;
 
-                // --- FIX: Strict Type Check ---
-                // Only create a challenge if the segment type explicitly allows it.
-                // This prevents 'narration' segments from accidentally having challenges.
                 if (seg.type === 'choiceChallenge' && seg.challenge) {
                     const choices = Array.isArray(seg.challenge.choices) ? seg.challenge.choices : [];
                     const domainChoices = choices.map((c: any) => new Choice(
@@ -185,6 +184,7 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
 
                 return new StorySegment(
                     randomUUID(),
+                    index, // <--- PASSED HERE (Matches new StorySegment Constructor)
                     seg.type,
                     seg.text_content,
                     generateUrl(seg.visual_description || "story scene"),

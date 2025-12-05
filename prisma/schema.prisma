@@ -15,7 +15,7 @@ model User {
   email    String @unique
   fullName String
   password String
-  level Int @default(1) 
+  level    Int    @default(1)
 
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
@@ -51,6 +51,7 @@ model StorySegment {
   type        String // "narration" or "choiceChallenge"
   textContent String  @db.Text // The raw text content
   audioUrl    String? // Stores the OBS Cloud URL (e.g. https://obs.../file.wav)
+  orderIndex  Int     @default(0)
 
   imageUrl String?
 
