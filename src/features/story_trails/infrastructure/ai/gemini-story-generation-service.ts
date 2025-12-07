@@ -16,7 +16,7 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
         if (!apiKey) throw new Error('GEMINI_API_KEY is missing.');
 
         this.ai = new GoogleGenAI({ apiKey: apiKey });
-        this.modelId = 'gemini-2.0-flash';
+        this.modelId = 'gemini-flash-latest';
     }
 
     async generateStoryForLevel(level: number): Promise<StoryTrail> {
@@ -94,17 +94,24 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
 
     private buildPrompt(level: number, context: string): string {
         return `
-            You are a creative storyteller for a children's English learning app. 
+            You are a creative storyteller for a universal English learning app designed for a wide age range (from children to young adults). 
             Your task is to generate a complete "Story Trail" object in a single, valid JSON format.
 
+            **Target Audience & Tone:**
+            1.  **Universal Appeal:** The stories must be engaging for users aged 14-22+ while remaining safe for younger users (6-10).
+            2.  **Topics:** Focus on Adventure, Mystery, Romance, Travel, Science, History, or Myth/Folklore. 
+            3.  **Avoid:** Do not use overly childish themes (like "baby animals learning to potty") or strictly mature/explicit themes. Aim for a "Pixar movie", "Disney", or "Young Adult novel" vibe.
+
             **Story Requirements:**
-            1.  Difficulty Level: ${level}.
+            1.  Difficulty Level: ${level} (Adjust vocabulary and grammar complexity accordingly).
             2.  Context: ${context}
-            3.  Structure: Include 3-5 segments.
-            4.  **IMPORTANT:** The FIRST segment must always be 'narration'. Do not start with a challenge.
+            3.  **Length:** You MUST include **8 to 12 segments** to ensure a substantial learning experience.
+            4.  **Structure:** 
+                - The **FIRST** segment must ALWAYS be 'narration'.
+                - Intersperse 'choiceChallenge' segments throughout the story to test comprehension.
             
             **IMAGES:**
-            Generate a **"visual_description"** (5-10 words) for each scene.
+            Generate a **"visual_description"** (5-10 words) for each scene. The visual style should be "Cinematic Illustration" rather than "Toddler Cartoon".
 
             **JSON Schema:**
             {
@@ -125,13 +132,14 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
                   "challenge": {
                     "prompt": "Question?",
                     "choices": [
-                      { "text": "A", "visual_description": "icon desc", "is_correct": false },
-                      { "text": "B", "visual_description": "icon desc", "is_correct": true }
+                      { "text": "A", "visual_description": "visual cue", "is_correct": false },
+                      { "text": "B", "visual_description": "visual cue", "is_correct": true }
                     ],
-                    "correct_feedback": "Yes!",
-                    "incorrect_feedback": "No."
+                    "correct_feedback": "That's correct!",
+                    "incorrect_feedback": "Not quite. Try again."
                   }
                 }
+                // ... ensure total segments is between 8 and 12
               ]
             }
         `;
@@ -140,11 +148,19 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
     private mapJsonToDomain(jsonData: any): StoryTrail {
         const storyId = randomUUID();
 
-        // Fast Mode: Just strings, no downloading
+        // Helper to generate Pollinations URL string instantly
         const generateUrl = (desc: string) => {
             if (!desc) return 'https://via.placeholder.com/300';
+
             const seed = Math.floor(Math.random() * 10000);
-            const encoded = encodeURIComponent(desc + " cute children book illustration style");
+
+            // UPDATED STYLE: 
+            // "cinematic digital art, Pixar style" -> Great for universal appeal (ages 6-25+)
+            // "highly detailed, 4k" -> Ensures professional quality
+            // "vibrant colors" -> Makes it engaging
+            const style = " cinematic digital art, Pixar style, highly detailed, 4k, vibrant colors";
+
+            const encoded = encodeURIComponent(desc + style);
             return `https://image.pollinations.ai/prompt/${encoded}?nologo=true&width=1024&height=1024&seed=${seed}`;
         };
 
