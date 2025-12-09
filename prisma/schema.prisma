@@ -98,3 +98,47 @@ model CompletedStory {
 
   @@id([userId, storyId]) // Composite primary key
 }
+
+model LearningShort {
+  id        String @id @default(uuid())
+  youtubeId String @unique @map("youtube_id") // The "dQw4w9WgXcQ" part
+
+  // Metadata
+  title        String
+  description  String? @db.Text
+  thumbnailUrl String? @map("thumbnail_url")
+  channelName  String? @map("channel_name")
+  duration     Int     @default(0) // In seconds
+
+  // "Real English" Smart Tags
+  difficultyLevel String @default("intermediate") @map("difficulty_level") // beginner, intermediate, advanced
+  category        String @default("general") // funny, real_life, motivation, culture
+
+  // Search Optimization (We will handle vector logic via Raw SQL in repo, but need a field)
+  // Note: Prisma doesn't natively support TSVECTOR types perfectly yet, 
+  // so we rely on raw queries for search, but we store text here.
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  watchedBy UserShortHistory[]
+
+  @@map("learning_shorts")
+}
+
+// Track what users have watched so we don't show duplicates
+model UserShortHistory {
+  id      String @id @default(uuid())
+  userId  String @map("user_id")
+  shortId String @map("short_id")
+
+  watchedAt DateTime @default(now()) @map("watched_at")
+  isSaved   Boolean  @default(false) @map("is_saved") // If user "liked/saved" it
+
+  short LearningShort @relation(fields: [shortId], references: [id])
+  // user   User          @relation(...) // Assuming you have a User model
+
+  @@unique([userId, shortId]) // User can only have one history entry per video
+  @@map("user_short_history")
+}

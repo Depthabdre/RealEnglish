@@ -97,10 +97,19 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
             You are a creative storyteller for a universal English learning app designed for a wide age range (from children to young adults). 
             Your task is to generate a complete "Story Trail" object in a single, valid JSON format.
 
-            **Target Audience & Tone:**
-            1.  **Universal Appeal:** The stories must be engaging for users aged 14-22+ while remaining safe for younger users (6-10).
-            2.  **Topics:** Focus on Adventure, Mystery, Romance, Travel, Science, History, or Myth/Folklore. 
-            3.  **Avoid:** Do not use overly childish themes (like "baby animals learning to potty") or strictly mature/explicit themes. Aim for a "Pixar movie", "Disney", or "Young Adult novel" vibe.
+           **Target Audience & Tone (Slice of Life):**
+            1.  **Core Philosophy:** "Real People, Real Emotions." The story must feel like a genuine experience a young person (aged 14-25) could actually have today.
+            2.  **Topics to Prioritize:** 
+                - **Student Life (High School/University):** Exam stress, study groups, dorm life, graduation, balancing a part-time job with classes, campus dynamics.
+                - **Relationships & Romance:** First dates, having a crush, navigating awkward conversations, healthy communication, handling a breakup, or a supportive partnership. (Keep it PG-13 but emotionally mature).
+                - **Friendship Dynamics:** Loyalty, resolving conflicts between friends, making new friends in a new city, road trips, or drifting apart and reconnecting.
+                - **Urban Life & Independence:** Moving out for the first time, finding an apartment, navigating public transport, cooking dinner alone.
+                - **Career & Ambition:** First job interviews, workplace dynamics, pursuing a passion (art, coding, sports).
+            3.  **STRICTLY AVOID:** 
+                - **NO** "finding treasure maps," "searching for lost gold," "magical forests," or "talking animals." 
+                - **NO** "saving the kingdom" or "fighting dragons." 
+                - Avoid over-dramatic "action movie" plots. Focus on the *internal* journey and small, meaningful external events.
+
 
             **Story Requirements:**
             1.  Difficulty Level: ${level} (Adjust vocabulary and grammar complexity accordingly).
@@ -149,19 +158,16 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
         const storyId = randomUUID();
 
         // Helper to generate Pollinations URL string instantly
+        // Helper to generate Pollinations URL string
         const generateUrl = (desc: string) => {
             if (!desc) return 'https://via.placeholder.com/300';
 
             const seed = Math.floor(Math.random() * 10000);
-
-            // UPDATED STYLE: 
-            // "cinematic digital art, Pixar style" -> Great for universal appeal (ages 6-25+)
-            // "highly detailed, 4k" -> Ensures professional quality
-            // "vibrant colors" -> Makes it engaging
-            const style = " cinematic digital art, Pixar style, highly detailed, 4k, vibrant colors";
-
+            const style = " cinematic digital art, Pixar style, highly detailed, vibrant colors, soft lighting";
             const encoded = encodeURIComponent(desc + style);
-            return `https://image.pollinations.ai/prompt/${encoded}?nologo=true&width=1024&height=1024&seed=${seed}`;
+
+            // CHANGED: Reduced to 768x768 to prevent 524 Timeouts and save data
+            return `https://image.pollinations.ai/prompt/${encoded}?nologo=true&width=768&height=768&seed=${seed}`;
         };
 
         return new StoryTrail(
