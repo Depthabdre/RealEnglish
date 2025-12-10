@@ -29,6 +29,15 @@ import { GetNextStoryTrailUseCase } from './features/story_trails/usecases/get-n
 import { GetStoryTrailByIdUseCase } from './features/story_trails/usecases/get-story-trail-by-id';
 import { MarkStoryTrailCompletedUseCase } from './features/story_trails/usecases/mark-story-trail-completed';
 import { GetAudioForSegmentUseCase } from './features/story_trails/usecases/get-audio-for-segment';
+import { ImmersionRepository } from './features/daily_immersion/domain/interface/immersion-repository';
+import { VideoHarvestingService } from './features/daily_immersion/domain/interface/video-harvesting-service';
+import { YouTubeHarvestingService } from './features/daily_immersion/infrastructure/external/youtube-harvesting-service';
+import { PrismaImmersionRepository } from './features/daily_immersion/infrastructure/database/prisma-immersion-repository';
+import { GetPersonalizedFeedUseCase } from './features/daily_immersion/usecases/get-personalized-feed';
+import { HarvestYouTubeShortsUseCase } from './features/daily_immersion/usecases/harvest-youtube-shorts';
+import { ToggleSaveVideoUseCase } from './features/daily_immersion/usecases/toggle-save-video';
+import { MarkVideoWatchedUseCase } from './features/daily_immersion/usecases/mark-video-watched';
+import { GetSavedShortsUseCase } from './features/daily_immersion/usecases/get-saved-shorts';
 
 export class DIContainer {
 
@@ -49,6 +58,46 @@ export class DIContainer {
     private static readonly _textToSpeechService = new GeminiTextToSpeechService(process.env.GEMINI_API_KEY!);
 
     private static readonly _storyGenerationService = new GeminiStoryGenerationService(this._storyTrailRepository);
+    // (In your DIContainer file)
+    public static getImmersionRepository(): ImmersionRepository {
+        // REMOVED THE () AFTER _prismaClient
+        return new PrismaImmersionRepository(this._prismaClient);
+    }
+
+    public static getVideoHarvestingService(): VideoHarvestingService {
+        return new YouTubeHarvestingService();
+    }
+
+    // Add these to your DIContainer class
+
+    // --- Daily Immersion Use Cases ---
+
+    public static getGetPersonalizedFeedUseCase() {
+        return new GetPersonalizedFeedUseCase(
+            this.getImmersionRepository(),
+            // ADD THIS: Inject the Harvester service
+            this.getVideoHarvestingService()
+        );
+    }
+
+    public static getHarvestYouTubeShortsUseCase() {
+        return new HarvestYouTubeShortsUseCase(
+            this.getImmersionRepository(),
+            this.getVideoHarvestingService()
+        );
+    }
+
+    public static getToggleSaveVideoUseCase() {
+        return new ToggleSaveVideoUseCase(this.getImmersionRepository());
+    }
+
+    public static getMarkVideoWatchedUseCase() {
+        return new MarkVideoWatchedUseCase(this.getImmersionRepository());
+    }
+
+    public static getGetSavedShortsUseCase() {
+        return new GetSavedShortsUseCase(this.getImmersionRepository());
+    }
 
     // =================================================================
     // PUBLIC GETTERS FOR USE CASES

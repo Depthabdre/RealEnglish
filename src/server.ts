@@ -10,6 +10,7 @@ import authRouter from './features/authentication/interface/routes/auth_routes';
 // --- Import Story Trails Routes (NEW) ---
 import storyTrailRouter from './features/story_trails/interface/routes/story-trails.routes';
 import userProgressRouter from './features/story_trails/interface/routes/user-progress.routes';
+import immersionRouter from './features/daily_immersion/interface/routes/immersion-routes';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -29,6 +30,8 @@ app.use('/api/story-trails', storyTrailRouter);
 
 // Mount the user progress routes under the `/api/user-progress` prefix
 app.use('/api/user-progress', userProgressRouter);
+
+app.use('/api/daily-immersion', immersionRouter);
 
 
 // A simple root route to check if the server is up
