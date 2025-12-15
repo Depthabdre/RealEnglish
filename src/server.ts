@@ -19,7 +19,6 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 // --- Routes ---
 // Mount our authentication routes under the `/api/auth` prefix
 app.use('/api/auth', authRouter);

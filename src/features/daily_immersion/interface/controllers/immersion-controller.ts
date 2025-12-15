@@ -98,7 +98,7 @@ export class ImmersionController {
      */
     public triggerManualHarvest = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
-            const category = req.body.category || 'funny';
+            const category = req.body.category || 'mix';
 
             const stats = await this.harvestUseCase.execute({ category });
 
