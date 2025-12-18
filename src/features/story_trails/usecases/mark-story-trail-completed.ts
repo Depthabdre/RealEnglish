@@ -1,8 +1,9 @@
 import { UserProgressRepository } from '../domain/interface/user-progress-repository';
 import { StoryTrailRepository } from '../domain/interface/story-trail-repository';
 import { UserRepository } from '../domain/interface/user-repository';
+// 1. IMPORT THE SERVICE
+import { StreakService } from '../../profile/domain/services/streak_service';
 
-// We'll define a constant for how many stories are needed to level up.
 const STORIES_REQUIRED_FOR_LEVEL_UP = 1;
 
 export interface MarkStoryTrailCompletedInput {
@@ -19,7 +20,9 @@ export class MarkStoryTrailCompletedUseCase {
     constructor(
         private readonly userProgressRepository: UserProgressRepository,
         private readonly userRepository: UserRepository,
-        private readonly storyTrailRepository: StoryTrailRepository
+        private readonly storyTrailRepository: StoryTrailRepository,
+        // 2. INJECT THE SERVICE
+        private readonly streakService: StreakService
     ) { }
 
     async execute(input: MarkStoryTrailCompletedInput): Promise<LevelCompletionStatus> {
@@ -34,10 +37,16 @@ export class MarkStoryTrailCompletedUseCase {
             throw new Error('User or StoryTrail not found.');
         }
 
-        // Mark the story as completed. This returns true if it's the first time.
+        // Mark the story as completed.
         const wasJustCompleted = await this.userProgressRepository.markStoryAsCompleted(userId, trailId);
 
-        // If the user had already completed this story, no need to check for level up.
+        // 3. UPDATE STREAK
+        // We do this regardless of whether they "just" completed it or are re-playing it.
+        // Practice is practice.
+        await this.streakService.updateStreak(userId);
+
+        // If the user had already completed this story previously, 
+        // they get the streak point (above), but no new level calculation.
         if (!wasJustCompleted) {
             return { didLevelUp: false, newLevel: user.level };
         }
@@ -53,7 +62,6 @@ export class MarkStoryTrailCompletedUseCase {
             }
         }
 
-        // Otherwise, no level up occurred.
         return { didLevelUp: false, newLevel: user.level };
     }
 }

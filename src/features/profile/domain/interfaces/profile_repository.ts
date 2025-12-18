@@ -27,4 +27,6 @@ export interface ProfileRepository {
      * Updates the user's basic identity information.
      */
     updateIdentity(userId: string, fullName?: string, avatarUrl?: string): Promise<void>;
+
+    updateStreak(userId: string, newStreak: number, lastActiveDate: Date): Promise<void>;
 }

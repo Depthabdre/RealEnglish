@@ -1,18 +1,18 @@
 import { ImmersionRepository } from '../domain/interface/immersion-repository';
-
-export interface MarkVideoWatchedInput {
-    userId: string;
-    shortId: string;
-}
+import { StreakService } from '../../profile/domain/services/streak_service'; // Import StreakService
 
 export class MarkVideoWatchedUseCase {
     constructor(
-        private readonly immersionRepository: ImmersionRepository
+        private readonly immersionRepo: ImmersionRepository,
+        private readonly streakService: StreakService // <--- Inject it
     ) { }
 
-    async execute(input: MarkVideoWatchedInput): Promise<void> {
-        // Fire and forget logic (we don't return anything)
-        await this.immersionRepository.markAsWatched(input.userId, input.shortId);
-        console.log(`👀 Marked video ${input.shortId} as watched by ${input.userId}`);
+    async execute(params: { userId: string, shortId: string }): Promise<void> {
+        // 1. Mark video as watched (Existing Logic)
+        await this.immersionRepo.markAsWatched(params.userId, params.shortId);
+
+        // 2. TRIGGER STREAK UPDATE (New Logic)
+        // We assume watching a video counts as "practice"
+        await this.streakService.updateStreak(params.userId);
     }
 }

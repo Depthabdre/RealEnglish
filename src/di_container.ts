@@ -45,6 +45,7 @@ import { GetSavedShortsUseCase } from './features/daily_immersion/usecases/get-s
 import { PrismaProfileRepository } from './features/profile/infrastructure/repositories/prisma_profile_repository';
 import { GetUserProfile } from './features/profile/usecases/get_user_profile';
 import { UpdateProfileIdentity } from './features/profile/usecases/update_profile_identity';
+import { StreakService } from './features/profile/domain/services/streak_service';
 
 
 export class DIContainer {
@@ -67,6 +68,7 @@ export class DIContainer {
     // (Managed via Getters below to match your pattern, or static properties if preferred)
 
     // --- PROFILE INFRASTRUCTURE (NEW) ---
+
     private static readonly _profileRepository = new PrismaProfileRepository(this._prismaClient);
 
     // =================================================================
@@ -93,7 +95,8 @@ export class DIContainer {
         return new MarkStoryTrailCompletedUseCase(
             this._userProgressRepository,
             this._userRepository,
-            this._storyTrailRepository
+            this._storyTrailRepository,
+            this.getStreakService()
         );
     }
     public static getGetAudioForSegmentUseCase() {
@@ -117,7 +120,7 @@ export class DIContainer {
         return new ToggleSaveVideoUseCase(this.getImmersionRepository());
     }
     public static getMarkVideoWatchedUseCase() {
-        return new MarkVideoWatchedUseCase(this.getImmersionRepository());
+        return new MarkVideoWatchedUseCase(this.getImmersionRepository(), this.getStreakService());
     }
     public static getGetSavedShortsUseCase() {
         return new GetSavedShortsUseCase(this.getImmersionRepository());
@@ -130,5 +133,12 @@ export class DIContainer {
 
     public static getUpdateProfileIdentityUseCase() {
         return new UpdateProfileIdentity(this._profileRepository);
+    }
+    // Create the Service Instance
+    private static readonly _streakService = new StreakService(this._profileRepository);
+
+    // Expose it
+    public static getStreakService() {
+        return this._streakService;
     }
 }

@@ -43,4 +43,14 @@ export class PrismaProfileRepository implements ProfileRepository {
             data: dataToUpdate
         });
     }
+
+    async updateStreak(userId: string, newStreak: number, lastActiveDate: Date): Promise<void> {
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                currentStreak: newStreak,
+                lastActiveDate: lastActiveDate
+            }
+        });
+    }
 }
