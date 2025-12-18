@@ -9,29 +9,44 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Our User model, which will become the "users" table in the database
+// ---------------------------------------------------------
+// 1. UPDATED USER MODEL (Includes Profile & Streak Data)
+// ---------------------------------------------------------
 model User {
   id       String @id @default(uuid())
   email    String @unique
   fullName String
   password String
-  level    Int    @default(1)
 
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  // --- Profile Identity ---
+  avatarUrl String? // Stores the image name (e.g. "hero_2.png")
+
+  // --- Growth & Habit ---
+  currentStreak  Int      @default(0)
+  lastActiveDate DateTime @default(now())
+  level          Int      @default(1) // Backup for Tree Stage
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- Relations ---
   completedStories CompletedStory[]
+  watchedShorts    UserShortHistory[]
 }
 
-// A model to store OTPs and reset tokens securely in the database
+// A model to store OTPs and reset tokens securely
 model PasswordResetToken {
   id      String   @id @default(uuid())
   email   String
-  token   String   @unique // This will be our OTP or a longer-lived token
+  token   String   @unique
   expires DateTime
 
-  @@index([email]) // Add an index to the email field for faster lookups
+  @@index([email])
 }
 
+// ---------------------------------------------------------
+// 2. STORY CONTENT MODELS (Unchanged)
+// ---------------------------------------------------------
 model StoryTrail {
   id              String @id @default(uuid())
   title           String
@@ -40,7 +55,7 @@ model StoryTrail {
   difficultyLevel Int
 
   segments    StorySegment[]
-  completedBy CompletedStory[] // Relation to track completions
+  completedBy CompletedStory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -49,8 +64,8 @@ model StoryTrail {
 model StorySegment {
   id          String  @id @default(uuid())
   type        String // "narration" or "choiceChallenge"
-  textContent String  @db.Text // The raw text content
-  audioUrl    String? // Stores the OBS Cloud URL (e.g. https://obs.../file.wav)
+  textContent String  @db.Text
+  audioUrl    String?
   orderIndex  Int     @default(0)
 
   imageUrl String?
@@ -58,7 +73,7 @@ model StorySegment {
   trailId    String
   storyTrail StoryTrail @relation(fields: [trailId], references: [id], onDelete: Cascade)
 
-  challenge SingleChoiceChallenge? // A segment can have one challenge
+  challenge SingleChoiceChallenge?
 
   @@index([trailId])
 }
@@ -66,11 +81,11 @@ model StorySegment {
 model SingleChoiceChallenge {
   id                String  @id @default(uuid())
   prompt            String
-  correctAnswerId   String // The ID of the correct choice
+  correctAnswerId   String
   correctFeedback   String?
   incorrectFeedback String?
 
-  segmentId String       @unique // Each segment has only one challenge
+  segmentId String       @unique
   segment   StorySegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
 
   choices Choice[]
@@ -87,7 +102,7 @@ model Choice {
   @@index([challengeId])
 }
 
-// Join table to track user progress (many-to-many relationship)
+// Join table to track user progress
 model CompletedStory {
   userId      String
   storyId     String
@@ -96,27 +111,26 @@ model CompletedStory {
   user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   story StoryTrail @relation(fields: [storyId], references: [id], onDelete: Cascade)
 
-  @@id([userId, storyId]) // Composite primary key
+  @@id([userId, storyId])
 }
 
+// ---------------------------------------------------------
+// 3. SHORTS & HISTORY MODELS (Updated Relation)
+// ---------------------------------------------------------
 model LearningShort {
   id        String @id @default(uuid())
-  youtubeId String @unique @map("youtube_id") // The "dQw4w9WgXcQ" part
+  youtubeId String @unique @map("youtube_id")
 
   // Metadata
   title        String
   description  String? @db.Text
   thumbnailUrl String? @map("thumbnail_url")
   channelName  String? @map("channel_name")
-  duration     Int     @default(0) // In seconds
+  duration     Int     @default(0)
 
-  // "Real English" Smart Tags
-  difficultyLevel String @default("intermediate") @map("difficulty_level") // beginner, intermediate, advanced
-  category        String @default("general") // funny, real_life, motivation, culture
-
-  // Search Optimization (We will handle vector logic via Raw SQL in repo, but need a field)
-  // Note: Prisma doesn't natively support TSVECTOR types perfectly yet, 
-  // so we rely on raw queries for search, but we store text here.
+  // Smart Tags
+  difficultyLevel String @default("intermediate") @map("difficulty_level")
+  category        String @default("general")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -127,18 +141,19 @@ model LearningShort {
   @@map("learning_shorts")
 }
 
-// Track what users have watched so we don't show duplicates
 model UserShortHistory {
   id      String @id @default(uuid())
   userId  String @map("user_id")
   shortId String @map("short_id")
 
   watchedAt DateTime @default(now()) @map("watched_at")
-  isSaved   Boolean  @default(false) @map("is_saved") // If user "liked/saved" it
+  isSaved   Boolean  @default(false) @map("is_saved")
 
   short LearningShort @relation(fields: [shortId], references: [id])
-  // user   User          @relation(...) // Assuming you have a User model
 
-  @@unique([userId, shortId]) // User can only have one history entry per video
+  // --- UPDATED: Connected this back to User model ---
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shortId])
   @@map("user_short_history")
 }

@@ -167,7 +167,7 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
             const encoded = encodeURIComponent(desc + style);
 
             // CHANGED: Reduced to 768x768 to prevent 524 Timeouts and save data
-            return `https://image.pollinations.ai/prompt/${encoded}?nologo=true&width=768&height=768&seed=${seed}`;
+            return `https://image.pollinations.ai/prompt/${encoded}?nologo=true&width=512&height=512&seed=${seed}`;
         };
 
         return new StoryTrail(

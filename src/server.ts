@@ -11,6 +11,7 @@ import authRouter from './features/authentication/interface/routes/auth_routes';
 import storyTrailRouter from './features/story_trails/interface/routes/story-trails.routes';
 import userProgressRouter from './features/story_trails/interface/routes/user-progress.routes';
 import immersionRouter from './features/daily_immersion/interface/routes/immersion-routes';
+import profileRouter from './features/profile/interface/routes/profile_routes';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -31,6 +32,9 @@ app.use('/api/story-trails', storyTrailRouter);
 app.use('/api/user-progress', userProgressRouter);
 
 app.use('/api/daily-immersion', immersionRouter);
+
+// Mount Profile Routes (NEW)
+app.use('/api/profile', profileRouter); // <--- NEW: This activates /api/profile/me
 
 
 // A simple root route to check if the server is up
