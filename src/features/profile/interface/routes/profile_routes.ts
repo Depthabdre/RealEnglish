@@ -1,14 +1,15 @@
 import { Router } from 'express';
+import multer from 'multer'; // <--- 1. Import Multer
 import { ProfileController } from '../controllers/profile_controller';
 import { authMiddleware } from '../../../authentication/interface/middleware/auth_middleware';
+
+// 2. Configure Multer (Ram Storage)
+const upload = multer({ storage: multer.memoryStorage() });
 
 const profileRouter = Router();
 const controller = new ProfileController();
 
-// --- PROFILE ROUTES ---
-
 // GET /api/profile/me
-// Loads the "Garden" (Tree stage, stats, streak)
 profileRouter.get(
     '/me',
     authMiddleware,
@@ -16,10 +17,12 @@ profileRouter.get(
 );
 
 // PATCH /api/profile/me
-// Updates Name or Avatar
 profileRouter.patch(
     '/me',
     authMiddleware,
+    // 👇👇👇 THIS LINE IS CRITICAL 👇👇👇
+    upload.single('avatar'),
+    // 👆👆👆 IT MUST BE HERE 👆👆👆
     controller.updateMe
 );
 

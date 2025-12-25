@@ -33,24 +33,34 @@ export class ProfileController {
     }
 
     /**
-     * Handles: PATCH /api/profile/me
-     * Body: { "fullName": "New Name", "avatarUrl": "hero_2.png" }
-     * Allows updating name or avatar (identity).
-     */
+      * Handles: PATCH /api/profile/me
+      * Content-Type: multipart/form-data
+      * Body: { fullName: "Abebe" }
+      * File: "avatar" (optional)
+      */
     public updateMe = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const userId = req.user!.id;
-            const { fullName, avatarUrl } = req.body;
+            const { fullName } = req.body;
 
-            await this.updateProfileUseCase.execute({
+            // Extract file if Multer processed it
+            const file = req.file;
+
+            const newAvatarUrl = await this.updateProfileUseCase.execute({
                 userId,
                 fullName,
-                avatarUrl
+                imageFile: file ? {
+                    buffer: file.buffer,
+                    mimeType: file.mimetype
+                } : undefined
             });
 
             res.status(200).json({
                 status: 'success',
-                message: 'Profile updated successfully'
+                message: 'Profile updated successfully',
+                data: {
+                    avatarUrl: newAvatarUrl // Send back URL so UI updates immediately
+                }
             });
 
         } catch (error: any) {

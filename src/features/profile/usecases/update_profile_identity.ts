@@ -1,24 +1,42 @@
-// src/feature/profile/use-cases/update_profile_identity.ts
-
 import { ProfileRepository } from '../domain/interfaces/profile_repository';
+import { ImageStorageService } from '../domain/interfaces/image_storage_service';
 
-interface UpdateRequest {
+export interface UpdateProfileRequest {
     userId: string;
     fullName?: string;
-    avatarUrl?: string;
+    // New fields for image handling
+    imageFile?: {
+        buffer: Buffer;
+        mimeType: string;
+    };
 }
 
 export class UpdateProfileIdentity {
-    constructor(private readonly repository: ProfileRepository) { }
+    constructor(
+        private readonly repository: ProfileRepository,
+        private readonly storageService: ImageStorageService // <--- Inject Storage
+    ) { }
 
-    async execute(request: UpdateRequest): Promise<void> {
-        if (!request.fullName && !request.avatarUrl) {
-            return; // Nothing to update
+    async execute(request: UpdateProfileRequest): Promise<string | null> {
+        let avatarUrl: string | undefined = undefined;
+
+        // 1. If there is a file, upload it first
+        if (request.imageFile) {
+            avatarUrl = await this.storageService.uploadProfilePicture(
+                request.userId,
+                request.imageFile.buffer,
+                request.imageFile.mimeType
+            );
         }
+
+        // 2. Update the Database
+        // If avatarUrl is defined, it updates. If undefined, it leaves it alone.
         await this.repository.updateIdentity(
             request.userId,
             request.fullName,
-            request.avatarUrl
+            avatarUrl
         );
+
+        return avatarUrl || null; // Return new URL if generated
     }
 }

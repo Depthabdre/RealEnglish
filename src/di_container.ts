@@ -46,6 +46,7 @@ import { PrismaProfileRepository } from './features/profile/infrastructure/repos
 import { GetUserProfile } from './features/profile/usecases/get_user_profile';
 import { UpdateProfileIdentity } from './features/profile/usecases/update_profile_identity';
 import { StreakService } from './features/profile/domain/services/streak_service';
+import { ObsProfileImageService } from './features/profile/infrastructure/services/obs_profile_image_service';
 
 
 export class DIContainer {
@@ -70,6 +71,7 @@ export class DIContainer {
     // --- PROFILE INFRASTRUCTURE (NEW) ---
 
     private static readonly _profileRepository = new PrismaProfileRepository(this._prismaClient);
+    private static readonly _profileImageService = new ObsProfileImageService(); // <--- NEW
 
     // =================================================================
     // PUBLIC GETTERS
@@ -132,8 +134,12 @@ export class DIContainer {
     }
 
     public static getUpdateProfileIdentityUseCase() {
-        return new UpdateProfileIdentity(this._profileRepository);
+        return new UpdateProfileIdentity(
+            this._profileRepository,
+            this._profileImageService // <--- Inject here
+        );
     }
+
     // Create the Service Instance
     private static readonly _streakService = new StreakService(this._profileRepository);
 
