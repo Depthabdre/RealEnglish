@@ -15,159 +15,169 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) throw new Error('GEMINI_API_KEY is missing.');
 
-        this.ai = new GoogleGenAI({ apiKey: apiKey });
+        this.ai = new GoogleGenAI({ apiKey });
         this.modelId = 'gemini-flash-latest';
     }
 
     async generateStoryForLevel(level: number): Promise<StoryTrail> {
-        console.log(`👉 Stage 1: Preparing prompt for Level ${level}...`);
+        console.log(`👉 Stage 1: Preparing story for level ${level}`);
 
         let previousLevelContext = '';
         if (level > 1) {
-            const previousStory = await this.storyTrailRepository.findFirstByLevel(level - 1);
-            if (previousStory) {
-                previousLevelContext = `The previous level's story (level ${level - 1}) was titled "${previousStory.title}". This new story for level ${level} should be slightly more advanced.`;
+            const prev = await this.storyTrailRepository.findFirstByLevel(level - 1);
+            if (prev) {
+                previousLevelContext =
+                    `Previous story title was "${prev.title}". This story should feel slightly deeper and more emotional.`;
             }
         }
 
         const prompt = this.buildPrompt(level, previousLevelContext);
 
         try {
-            console.log(`👉 Stage 2: Calling Gemini (${this.modelId})...`);
+            console.log(`👉 Stage 2: Calling Gemini`);
 
             const result = await this.ai.models.generateContent({
                 model: this.modelId,
                 contents: prompt,
-                config: { responseMimeType: 'application/json' }
+                config: {
+                    responseMimeType: 'application/json',
+                    temperature: 0.9
+                }
             });
 
-            const responseText = result.text;
-            if (!responseText) throw new Error("AI returned empty response");
+            const text = result.text;
+            if (!text) throw new Error('Empty AI response');
 
-            console.log("👉 Stage 3: Extracting JSON...");
-            const generatedJson = this.extractFirstJson(responseText);
+            console.log(`👉 Stage 3: Parsing JSON`);
+            const json = this.extractJsonSafely(text);
 
-            console.log("👉 Stage 4: constructing URLs (Fast Mode)...");
-            return this.mapJsonToDomain(generatedJson);
+            console.log(`👉 Stage 4: Mapping to domain`);
+            return this.mapJsonToDomain(json);
 
         } catch (error) {
-            console.error("Story Generation Failed:", error);
-            throw new Error("AI service failed to generate a valid story.");
+            console.error('❌ Story generation failed:', error);
+            throw new Error('AI service failed to generate a valid story.');
         }
     }
 
-    private extractFirstJson(text: string): any {
-        const match = text.match(/[\{\[]/);
-        if (!match || match.index === undefined) throw new Error("No JSON found.");
+    // ---------------- JSON SAFETY ----------------
+    private extractJsonSafely(text: string): any {
+        const trimmed = text.trim();
 
-        const startIndex = match.index;
-        const startChar = match[0];
-        const endChar = startChar === '{' ? '}' : ']';
-
-        let balance = 0;
-        let endIndex = -1;
-
-        for (let i = startIndex; i < text.length; i++) {
-            const char = text[i];
-            if (char === startChar) balance++;
-            else if (char === endChar) {
-                balance--;
-                if (balance === 0) {
-                    endIndex = i;
-                    break;
-                }
-            }
+        // Best case: pure JSON
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+            return JSON.parse(trimmed);
         }
 
-        if (endIndex === -1) throw new Error("Unbalanced JSON");
+        // Fallback extraction
+        const start = trimmed.indexOf('{');
+        const end = trimmed.lastIndexOf('}');
 
-        const jsonString = text.substring(startIndex, endIndex + 1);
-        try {
-            const cleaned = jsonString.replace(/[\u0000-\u001F]+/g, " ");
-            const parsed = JSON.parse(cleaned);
-            if (Array.isArray(parsed)) return parsed[0];
-            return parsed;
-        } catch (e) {
-            throw new Error("Failed to parse JSON");
+        if (start === -1 || end === -1) {
+            throw new Error('No JSON found in response');
         }
+
+        const jsonString = trimmed
+            .substring(start, end + 1)
+            .replace(/[\u0000-\u001F]+/g, ' ');
+
+        return JSON.parse(jsonString);
     }
 
+    // ---------------- PROMPT ----------------
     private buildPrompt(level: number, context: string): string {
         return `
-            You are a creative storyteller for a universal English learning app designed for a wide age range (from children to young adults). 
-            Your task is to generate a complete "Story Trail" object in a single, valid JSON format.
+CRITICAL OUTPUT RULES:
+- Output ONLY valid JSON
+- No explanations, no markdown, no comments
+- Response MUST start with { and end with }
+- Use double quotes only
+- No trailing commas
 
-           **Target Audience & Tone (Slice of Life):**
-            1.  **Core Philosophy:** "Real People, Real Emotions." The story must feel like a genuine experience a young person (aged 14-25) could actually have today.
-            2.  **Topics to Prioritize:** 
-                - **Student Life (High School/University):** Exam stress, study groups, dorm life, graduation, balancing a part-time job with classes, campus dynamics.
-                - **Relationships & Romance:** First dates, having a crush, navigating awkward conversations, healthy communication, handling a breakup, or a supportive partnership. (Keep it PG-13 but emotionally mature).
-                - **Friendship Dynamics:** Loyalty, resolving conflicts between friends, making new friends in a new city, road trips, or drifting apart and reconnecting.
-                - **Urban Life & Independence:** Moving out for the first time, finding an apartment, navigating public transport, cooking dinner alone.
-                - **Career & Ambition:** First job interviews, workplace dynamics, pursuing a passion (art, coding, sports).
-            3.  **STRICTLY AVOID:** 
-                - **NO** "finding treasure maps," "searching for lost gold," "magical forests," or "talking animals." 
-                - **NO** "saving the kingdom" or "fighting dragons." 
-                - Avoid over-dramatic "action movie" plots. Focus on the *internal* journey and small, meaningful external events.
+STORY STYLE (VERY IMPORTANT):
+You are a viral storyteller similar to Zack / Afrimax English.
+The story must be so interesting that people want to share it.
 
+RULES:
+1. Start with a STRONG emotional hook in the first 2–3 sentences.
+2. Write like a real human experience happening today.
+3. Show inner thoughts, fear, hope, doubt, and decision-making.
+4. Use simple, natural English suitable for Ethiopian learners.
+5. The story must flow naturally, not like a lesson.
+6. End with a quiet life insight, not preaching.
 
-            **Story Requirements:**
-            1.  Difficulty Level: ${level} (Adjust vocabulary and grammar complexity accordingly).
-            2.  Context: ${context}
-            3.  **Length:** You MUST include **8 to 12 segments** to ensure a substantial learning experience.
-            4.  **Structure:** 
-                - The **FIRST** segment must ALWAYS be 'narration'.
-                - Intersperse 'choiceChallenge' segments throughout the story to test comprehension.
-            
-            **IMAGES:**
-            Generate a **"visual_description"** (5-10 words) for each scene. The visual style should be "Cinematic Illustration" rather than "Toddler Cartoon".
+LEARNING PHILOSOPHY:
+This app teaches English unconsciously.
+The user should feel like they are listening to a story, not studying.
 
-            **JSON Schema:**
-            {
-              "title": "Story Title",
-              "description": "Short description",
-              "visual_description": "visual description of cover",
-              "difficulty_level": ${level},
-              "segments": [
-                {
-                  "type": "narration",
-                  "text_content": "Story text...",
-                  "visual_description": "scene description"
-                },
-                {
-                  "type": "choiceChallenge",
-                  "text_content": "Story text...",
-                  "visual_description": "scene description",
-                  "challenge": {
-                    "prompt": "Question?",
-                    "choices": [
-                      { "text": "A", "visual_description": "visual cue", "is_correct": false },
-                      { "text": "B", "visual_description": "visual cue", "is_correct": true }
-                    ],
-                    "correct_feedback": "That's correct!",
-                    "incorrect_feedback": "Not quite. Try again."
-                  }
-                }
-                // ... ensure total segments is between 8 and 12
-              ]
-            }
-        `;
+STRICTLY AVOID:
+- Fantasy, magic, animals talking
+- Kings, queens, treasure, dragons
+- Over-dramatic action scenes
+
+STORY REQUIREMENTS:
+- Difficulty level: ${level}
+- Context: ${context}
+- Total segments: 8 to 12
+- First segment MUST be narration
+- EVERY segment MUST include "text_content" and it must NOT be empty.
+- At least 3 choiceChallenge segments
+- Each choiceChallenge MUST have exactly 2 choices
+- Exactly ONE choice must be correct
+
+VISUAL STYLE:
+Cinematic, realistic, emotional, modern.
+Good for short-video thumbnails.
+
+JSON SCHEMA (FOLLOW EXACTLY):
+{
+  "title": "Story title",
+  "description": "Short description",
+  "visual_description": "cover scene",
+  "difficulty_level": ${level},
+  "segments": [
+    {
+      "type": "narration",
+      "text_content": "Story text",
+      "visual_description": "scene"
+    },
+    {
+      "type": "choiceChallenge",
+      "text_content": "Story text",
+      "visual_description": "scene",
+      "challenge": {
+        "prompt": "Question?",
+        "choices": [
+          { "text": "Option A", "visual_description": "visual cue", "is_correct": false },
+          { "text": "Option B", "visual_description": "visual cue", "is_correct": true }
+        ],
+        "correct_feedback": "Correct feedback",
+        "incorrect_feedback": "Incorrect feedback"
+      }
+    }
+  ]
+}
+
+FINAL CHECK:
+Before responding, internally verify the JSON is valid.
+If not valid, FIX it before outputting.
+`;
     }
 
+    // ---------------- DOMAIN MAPPING ----------------
     private mapJsonToDomain(jsonData: any): StoryTrail {
         const storyId = randomUUID();
 
-        // Helper to generate Pollinations URL string instantly
-        // Helper to generate Pollinations URL string
+        // Pollinations image generation (free)
         const generateUrl = (desc: string) => {
-            if (!desc) return 'https://via.placeholder.com/300';
+            if (!desc) return 'https://via.placeholder.com/512';
 
             const seed = Math.floor(Math.random() * 10000);
-            const style = " cinematic digital art, Pixar style, highly detailed, vibrant colors, soft lighting";
+            const style =
+                ' cinematic digital art, realistic, emotional lighting, modern scene';
             const encoded = encodeURIComponent(desc + style);
 
-            // CHANGED: Reduced to 768x768 to prevent 524 Timeouts and save data
-            return `https://image.pollinations.ai/prompt/${encoded}?nologo=true&width=512&height=512&seed=${seed}`;
+            return `https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&seed=${seed}&nologo=true`;
         };
 
         return new StoryTrail(
@@ -176,22 +186,24 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
             jsonData.description,
             generateUrl(jsonData.visual_description || jsonData.title),
             jsonData.difficulty_level,
-            // --- UPDATED: Pass 'index' to the map function ---
             jsonData.segments.map((seg: any, index: number) => {
                 let challenge: SingleChoiceChallenge | null = null;
 
                 if (seg.type === 'choiceChallenge' && seg.challenge) {
-                    const choices = Array.isArray(seg.challenge.choices) ? seg.challenge.choices : [];
-                    const domainChoices = choices.map((c: any) => new Choice(
-                        randomUUID(),
-                        c.text,
-                        generateUrl(c.visual_description || c.text)
-                    ));
+                    const domainChoices = seg.challenge.choices.map((c: any) =>
+                        new Choice(
+                            randomUUID(),
+                            c.text,
+                            generateUrl(c.visual_description || c.text)
+                        )
+                    );
 
-                    let correctChoiceIndex = choices.findIndex((c: any) => c.is_correct === true);
-                    if (correctChoiceIndex === -1) correctChoiceIndex = 0;
+                    const correctIndex = seg.challenge.choices.findIndex(
+                        (c: any) => c.is_correct === true
+                    );
 
-                    const correctId = domainChoices.length > 0 ? domainChoices[correctChoiceIndex].id : randomUUID();
+                    const correctId =
+                        domainChoices[correctIndex]?.id ?? domainChoices[0].id;
 
                     challenge = new SingleChoiceChallenge(
                         randomUUID(),
@@ -206,10 +218,10 @@ export class GeminiStoryGenerationService implements StoryGenerationService {
 
                 return new StorySegment(
                     randomUUID(),
-                    index, // <--- PASSED HERE (Matches new StorySegment Constructor)
+                    index,
                     seg.type,
                     seg.text_content,
-                    generateUrl(seg.visual_description || "story scene"),
+                    generateUrl(seg.visual_description || 'story scene'),
                     null,
                     challenge
                 );
