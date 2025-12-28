@@ -4,41 +4,81 @@ import { ImmersionShort } from '../../domain/entities/immersion-short';
 import { randomUUID } from 'crypto';
 
 // ============================================================================
-// CONFIGURATION: The "Real English" Content Strategy
+// REAL ENGLISH – HIGH QUALITY SHORTS (TV + FAMOUS CREATORS)
 // ============================================================================
-const SEARCH_RECIPES: Record<string, string[]> = {
-    funny: [
-        "relatable comedy skits english",
-        "customer service skits shorts",
-        "stand up comedy crowd work clean",
-        "the office best moments shorts"
+
+type HarvestCategory =
+    | 'sitcom'
+    | 'talk_show'
+    | 'famous_creators'
+    | 'storytelling'
+    | 'visual';
+
+const SEARCH_RECIPES: Record<HarvestCategory, string[]> = {
+    // 🎬 TV Shows – Natural Dialogue
+    sitcom: [
+        'The Office shorts',
+        'Friends tv show shorts',
+        'Modern Family shorts',
+        'Brooklyn Nine-Nine shorts'
     ],
-    real_life: [
-        "day in the life vlog aesthetic voiceover",
-        "street interview london nyc",
-        "ordering food pov shorts",
-        "asking strangers questions shorts"
+
+    // 🎤 Talk Shows – Famous Hosts & Guests
+    talk_show: [
+        'The Ellen Show interview shorts',
+        'The Tonight Show Jimmy Fallon interview shorts',
+        'Jimmy Kimmel Live interview shorts',
+        'The Graham Norton Show interview shorts',
+        'The Late Show Stephen Colbert interview shorts'
     ],
-    motivation: [
-        "psychology facts shorts",
-        "today i learned shorts",
-        "simon sinek shorts",
-        "steve harvey motivation shorts"
+
+    // 🌍 Famous English Shorts Creators
+    famous_creators: [
+        'Nas Daily shorts',
+        'Zack D. Films shorts',
+        'Mark Rober shorts',
+        'Daily Dose of Internet shorts',
+        'Yes Theory shorts',
+        'Beast Philanthropy shorts',
+        'MrBeast philanthropy shorts',
+        'MrBeast interview shorts'
     ],
-    culture: [
-        "social skills tips shorts",
-        "modern dating advice shorts",
-        "american vs british english shorts",
-        "conversation starters tips"
+
+    // 📖 Calm Storytelling
+    storytelling: [
+        'Afrimax English shorts',
+        'short documentary english narration shorts',
+        'human story english shorts',
+        'life story narration english shorts'
+    ],
+
+    // 🎥 Visual Context (Low Pressure)
+    visual: [
+        'Zach King shorts',
+        'visual storytelling shorts english',
+        'daily life POV shorts english'
     ]
 };
+
+// ❌ Content that reduces comprehension
+const BLACKLIST_KEYWORDS = [
+    'prank',
+    'challenge',
+    'try not to laugh',
+    'compilation',
+    'meme',
+    'reaction',
+    'scream'
+];
 
 export class YouTubeHarvestingService implements VideoHarvestingService {
     private readonly youtube: youtube_v3.Youtube;
 
     constructor() {
         const apiKey = process.env.YOUTUBE_API_KEY;
-        if (!apiKey) throw new Error('YOUTUBE_API_KEY is missing in .env file.');
+        if (!apiKey) {
+            throw new Error('YOUTUBE_API_KEY is missing in .env file.');
+        }
 
         this.youtube = google.youtube({
             version: 'v3',
@@ -47,84 +87,109 @@ export class YouTubeHarvestingService implements VideoHarvestingService {
     }
 
     /**
-     * Harvests a MIX of videos. 
-     * Even if a specific category is requested, we ignore it to ensure diversity
-     * unless we specifically want to target one (flexibility).
+     * Harvests a mixed, high-quality English Shorts feed.
      */
-    async harvestByCategory(requestedCategory: string): Promise<ImmersionShort[]> {
-        console.log(`👉 [Harvester] Starting MIXED harvest (Targeting High Quality & Views)...`);
+    async harvestByCategory(_: string): Promise<ImmersionShort[]> {
+        console.log('👉 [Harvester] Starting Real English Shorts harvest...');
 
-        // 1. Select 3 distinct categories to harvest from to ensure a "Mix"
-        // (e.g., 1 Funny, 1 Motivation, 1 Culture)
-        const allCategories = Object.keys(SEARCH_RECIPES);
-        // Shuffle and pick 3
-        const selectedCategories = allCategories.sort(() => 0.5 - Math.random()).slice(0, 3);
+        const categories = Object.keys(SEARCH_RECIPES) as HarvestCategory[];
 
-        const harvestPromises = selectedCategories.map(cat => this.fetchVideosForCategory(cat));
+        // Shuffle & pick 3 categories for diversity
+        const selected = categories
+            .sort(() => Math.random() - 0.5)
+            .slice(0, 3);
 
-        // 2. Run requests in parallel
-        const results = await Promise.all(harvestPromises);
+        const results = await Promise.all(
+            selected.map(cat => this.fetchVideosForCategory(cat))
+        );
 
-        // 3. Flatten results into one list
-        const mixedShorts = results.flat();
+        const mixed = results.flat().sort(() => Math.random() - 0.5);
 
-        // 4. Shuffle the final list so they aren't grouped by category
-        const shuffledMix = mixedShorts.sort(() => 0.5 - Math.random());
+        console.log(
+            `✅ [Harvester] Completed. ${mixed.length} high-quality Shorts ready.`
+        );
 
-        console.log(`✅ [Harvester] Harvest complete. Returning ${shuffledMix.length} mixed high-quality videos.`);
-        return shuffledMix;
+        return mixed;
     }
 
-    private async fetchVideosForCategory(category: string): Promise<ImmersionShort[]> {
+    private async fetchVideosForCategory(
+        category: HarvestCategory
+    ): Promise<ImmersionShort[]> {
         const queries = SEARCH_RECIPES[category];
-        const randomQuery = queries[Math.floor(Math.random() * queries.length)];
+        const query = queries[Math.floor(Math.random() * queries.length)];
 
         try {
             const response = await this.youtube.search.list({
                 part: ['snippet'],
-                q: randomQuery,
+                q: query,
                 type: ['video'],
-                videoDuration: 'short', // Shorts only
-
-                // --- QUALITY & FAME SETTINGS ---
-                maxResults: 4,          // Fetch 4 per category (Total ~12 per harvest)
-                order: 'viewCount',     // 🌟 PRIORITY: Get "Famous" videos with most views
-                videoDefinition: 'high',// 🌟 PRIORITY: HD Quality only
-
-                // --- STRICT ENGLISH SETTINGS ---
+                videoDuration: 'short',
+                maxResults: 6,
+                order: 'viewCount',
+                videoDefinition: 'high',
                 relevanceLanguage: 'en',
-                regionCode: 'US',       // Bias towards US/UK/Canada for native speakers
+                regionCode: 'US',
                 safeSearch: 'strict'
             });
 
-            const items = response.data.items || [];
+            const items = response.data.items ?? [];
 
             return items
-                .filter(item => item.id?.videoId && item.snippet)
+                .filter(item => this.isValidItem(item))
                 .map(item => this.mapYouTubeItemToDomain(item, category));
 
         } catch (error) {
-            console.error(`❌ [Harvester] Failed to fetch category '${category}':`, error);
+            console.error(
+                `❌ [Harvester] Failed for category "${category}"`,
+                error
+            );
             return [];
         }
     }
 
-    private mapYouTubeItemToDomain(item: youtube_v3.Schema$SearchResult, category: string): ImmersionShort {
+    private isValidItem(item: youtube_v3.Schema$SearchResult): boolean {
+        if (!item.id?.videoId || !item.snippet) return false;
+
+        const title = item.snippet.title?.toLowerCase() ?? '';
+        const channel = item.snippet.channelTitle?.toLowerCase() ?? '';
+
+        // Extra protection against chaotic MrBeast content
+        if (channel.includes('mrbeast') && title.includes('challenge')) {
+            return false;
+        }
+
+        return !BLACKLIST_KEYWORDS.some(word => title.includes(word));
+    }
+
+    // 🚨 DATABASE MAPPING — UNCHANGED 🚨
+    private mapYouTubeItemToDomain(
+        item: youtube_v3.Schema$SearchResult,
+        category: string
+    ): ImmersionShort {
         const snippet = item.snippet!;
         const videoId = item.id!.videoId!;
 
-        const rawTitle = snippet.title || "Untitled";
-        const rawDesc = snippet.description || "";
+        const rawTitle = snippet.title || 'Untitled';
+        const rawDesc = snippet.description || '';
 
         const cleanTitle = this.cleanTitle(rawTitle);
 
-        // Auto-Detect Difficulty
-        const textToCheck = (rawTitle + " " + rawDesc).toLowerCase();
-        let difficulty: 'beginner' | 'intermediate' | 'advanced' = 'intermediate';
+        const text = (rawTitle + ' ' + rawDesc).toLowerCase();
 
-        if (textToCheck.includes('easy') || textToCheck.includes('basic') || textToCheck.includes('kids')) {
+        let difficulty: 'beginner' | 'intermediate' | 'advanced' =
+            'intermediate';
+
+        if (
+            text.includes('story') ||
+            text.includes('simple') ||
+            text.includes('explained')
+        ) {
             difficulty = 'beginner';
-        } else if (textToCheck.includes('advanced') || textToCheck.includes('native') || textToCheck.includes('fast')) {
+        } else if (
+            text.includes('fast') ||
+            text.includes('native') ||
+            text.includes('advanced')
+        ) {
             difficulty = 'advanced';
         }
 
@@ -133,8 +198,10 @@ export class YouTubeHarvestingService implements VideoHarvestingService {
             videoId,
             cleanTitle,
             rawDesc,
-            snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || "",
-            snippet.channelTitle || "Unknown Channel",
+            snippet.thumbnails?.high?.url ||
+            snippet.thumbnails?.default?.url ||
+            '',
+            snippet.channelTitle || 'Unknown Channel',
             difficulty,
             category as any,
             false,
@@ -146,11 +213,10 @@ export class YouTubeHarvestingService implements VideoHarvestingService {
         return rawTitle
             .replace(/&quot;/g, '"')
             .replace(/&#39;/g, "'")
-            .replace(/&amp;/g, "&")
-            .replace(/#\w+/g, "") // Remove hashtags
-            .replace(/\(Wait for it\.*\)/gi, "")
-            .replace(/Wait for end/gi, "")
-            .replace(/\|.*/, "") // Remove pipes often used in titles (e.g. "Title | Channel Name")
+            .replace(/&amp;/g, '&')
+            .replace(/#\w+/g, '')
+            .replace(/\(.*?\)/g, '')
+            .replace(/\|.*/, '')
             .trim();
     }
 }
