@@ -124,7 +124,7 @@ export class YouTubeHarvestingService implements VideoHarvestingService {
                 q: query,
                 type: ['video'],
                 videoDuration: 'short',
-                maxResults: 6,
+                maxResults: 3,
                 order: 'viewCount',
                 videoDefinition: 'high',
                 relevanceLanguage: 'en',

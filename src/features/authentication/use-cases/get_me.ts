@@ -14,6 +14,6 @@ export class GetMeUseCase {
 
         // We should not return the password hash, even if the repository provided it.
         // The User entity in the domain layer already makes the password optional, which is good practice.
-        return new User(user.id, user.fullName, user.email);
+        return new User(user.id, user.fullName, user.level, user.email);
     }
 }
