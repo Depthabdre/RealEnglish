@@ -1,10 +1,4 @@
----
 
-# 🧠 2. Node.js Backend README
-
-**Filename:** `README.md` (Place in your Backend project root)
-
-```markdown
 # 🧠 Real English - Backend API
 
 ![NodeJS](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
