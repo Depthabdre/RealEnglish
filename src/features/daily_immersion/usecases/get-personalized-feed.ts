@@ -20,7 +20,7 @@ export class GetPersonalizedFeedUseCase {
     async execute(input: GetPersonalizedFeedInput): Promise<ImmersionShort[]> {
         // Force 'mix' logic generally, but respect input if specifically requested
         const category = input.category || 'mix';
-        const limit = input.limit || 10;
+        const limit = input.limit || 6;
 
         console.log(`👉 Fetching feed for user ${input.userId} (Mode: ${category})...`);
 

@@ -39,10 +39,14 @@ export class PrismaImmersionRepository implements ImmersionRepository {
     }
 
     /**
-     * UPDATED: Fetches unwatched videos AND immediately marks them as watched.
+     * UPDATED: Fetches unwatched videos ONLY.
+     * 
+     * 🚨 FIX APPLIED: Removed the logic that automatically marked videos as watched.
+     * The Frontend is now responsible for calling 'markAsWatched' when the user
+     * actually scrolls past the video.
      */
     async getPersonalizedFeed(userId: string, category: string, limit: number): Promise<ImmersionShort[]> {
-        // 1. Build the Where Clause (Filter out watched videos)
+        // 1. Build the Where Clause (Filter out videos the user has already watched)
         const whereClause: any = {
             watchedBy: {
                 none: { userId: userId }
@@ -57,60 +61,59 @@ export class PrismaImmersionRepository implements ImmersionRepository {
         const rawShorts = await this.prisma.learningShort.findMany({
             where: whereClause,
             take: limit,
-            orderBy: { createdAt: 'desc' }, // Or random logic if you add it later
+            // Optimization: In the future, you can use raw SQL for random ordering.
+            // For now, sorting by newest ensures freshness.
+            orderBy: { createdAt: 'desc' },
         });
 
-        // 3. --- NEW: AUTO-MARK AS WATCHED ---
-        // We do this immediately so they don't show up in the next fetch.
-        if (rawShorts.length > 0) {
-            await this.prisma.$transaction(
-                rawShorts.map(short =>
-                    this.prisma.userShortHistory.upsert({
-                        where: { userId_shortId: { userId, shortId: short.id } },
-                        update: { watchedAt: new Date() }, // Update timestamp
-                        create: {
-                            userId,
-                            shortId: short.id,
-                            watchedAt: new Date(),
-                            isSaved: false
-                        }
-                    })
-                )
-            );
+        // 3. Check which of these are "Saved" (Liked) by the user
+        // We need this to show the correct "Heart" icon state on the UI.
+        const videoIds = rawShorts.map(s => s.id);
+        let savedSet = new Set<string>();
+
+        if (videoIds.length > 0) {
+            const savedRecords = await this.prisma.userShortHistory.findMany({
+                where: {
+                    userId: userId,
+                    shortId: { in: videoIds },
+                    isSaved: true
+                },
+                select: { shortId: true }
+            });
+
+            savedSet = new Set(savedRecords.map(r => r.shortId));
         }
 
-        // 4. Check which of these are "Saved" (Liked) by the user
-        const videoIds = rawShorts.map(s => s.id);
-        const savedRecords = await this.prisma.userShortHistory.findMany({
-            where: {
-                userId: userId,
-                shortId: { in: videoIds },
-                isSaved: true
-            },
-            select: { shortId: true }
-        });
-
-        const savedSet = new Set(savedRecords.map(r => r.shortId));
-
-        // 5. Map to Domain
+        // 4. Map to Domain
         return rawShorts.map(raw => this.mapToDomain(raw, savedSet.has(raw.id)));
     }
 
+    /**
+     * This is called by your 'MarkWatchedUseCase' when the frontend 
+     * sends the signal that a video was finished/scrolled.
+     */
     async markAsWatched(userId: string, shortId: string): Promise<void> {
-        // This method can stay as a "manual" override if needed, 
-        // but getPersonalizedFeed handles the bulk of it now.
         try {
             await this.prisma.userShortHistory.upsert({
                 where: { userId_shortId: { userId, shortId } },
+                // If it exists, just update the timestamp (user re-watched it)
                 update: { watchedAt: new Date() },
-                create: { userId, shortId, watchedAt: new Date(), isSaved: false }
+                // If not, create a new record
+                create: {
+                    userId,
+                    shortId,
+                    watchedAt: new Date(),
+                    isSaved: false
+                }
             });
+            // console.log(`👀 Marked video ${shortId} as watched for user ${userId}`);
         } catch (error) {
-            console.error("Failed to mark video as watched", error);
+            console.error(`Failed to mark video ${shortId} as watched:`, error);
         }
     }
 
     async toggleSave(userId: string, shortId: string): Promise<boolean> {
+        // Check current status
         const history = await this.prisma.userShortHistory.findUnique({
             where: { userId_shortId: { userId, shortId } }
         });
@@ -118,12 +121,14 @@ export class PrismaImmersionRepository implements ImmersionRepository {
         let newStatus = true;
 
         if (history) {
+            // Toggle existing
             newStatus = !history.isSaved;
             await this.prisma.userShortHistory.update({
                 where: { userId_shortId: { userId, shortId } },
                 data: { isSaved: newStatus }
             });
         } else {
+            // Create new (Saving implicitly means they watched it)
             await this.prisma.userShortHistory.create({
                 data: {
                     userId,
@@ -156,7 +161,7 @@ export class PrismaImmersionRepository implements ImmersionRepository {
             raw.difficultyLevel as 'beginner' | 'intermediate' | 'advanced',
             raw.category as 'funny' | 'real_life' | 'motivation' | 'culture' | 'mix',
             isSaved,
-            true // --- UPDATED: Since we just marked it as watched, this is always true now
+            false // 👈 IMPORTANT: Default isWatched to FALSE. The Frontend determines when it becomes true.
         );
     }
 }
