@@ -7,6 +7,8 @@
 ![Prisma](https://img.shields.io/badge/Prisma-5.x-2D3748?style=for-the-badge&logo=prisma&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Clean Architecture](https://img.shields.io/badge/Architecture-Clean-orange?style=for-the-badge)
+![AI](https://img.shields.io/badge/AI-Gemini%20%7C%20Pollinations-8E75B2?style=for-the-badge&logo=google&logoColor=white)
+![Storage](https://img.shields.io/badge/Storage-Tele%20Cloud%20OBS-0052cc?style=for-the-badge&logo=amazon-s3&logoColor=white)
 
 ---
 
@@ -34,8 +36,8 @@ You listened to stories. You watched people. You guessed meaning from context. Y
 
 ### 1. 📖 Interactive Story Engine
 We replaced traditional tests with **Playful Narratives**.
-- **The Engine:** Manages complex, graph-like JSON structures (`StoryTrail`, `StorySegment`, `SingleChoiceChallenge`) and serves them efficiently.
-- **The Tech:** Supports branched storytelling, choice validation with contextual feedback, and tracks user progression. It dynamically links AWS S3 audio elements to let users listen natively.
+- **The Engine:** Manages complex, graph-like JSON structures (`StoryTrail`, `StorySegment`, `SingleChoiceChallenge`) dynamically generated using the **Gemini AI API**.
+- **The Tech:** Supports branched storytelling, choice validation with contextual feedback, and tracks user progression. It uses the **Gemini API** for Text-to-Speech (TTS) audio generation, **Pollinations AI** for scene image generation, and **Ethio Telecom (Tele) Cloud OBS** (S3-compatible) to store and serve these generated audio and image assets directly to the mobile client.
 
 ### 2. 🎬 Immersion Feed Curator (Shorts)
 We replaced lectures with **Addiction**.
@@ -58,7 +60,7 @@ Every feature isolates:
 1. **Domain Layer:** Business Entities (e.g., `ImmersionShort`, `User`) and pure logic. No external dependencies.
 2. **Use Cases (Application):** Orchestrates the data flow (e.g., `GetPersonalizedFeed`, `GetNextStoryTrail`).
 3. **Interface Adapters:** Express routes, controllers, and middlewares.
-4. **Infrastructure:** PostgreSQL repositories (`Prisma`), AI clients, email services (`Nodemailer`), and file storage (`AWS S3`). 
+4. **Infrastructure:** PostgreSQL repositories (`Prisma`), AI clients (`Gemini API`, `Pollinations AI`), email services (`Nodemailer`), and file storage (`Ethio Telecom Cloud OBS`). 
 
 ### **Folder Structure**
 
